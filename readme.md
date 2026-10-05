@@ -1,4 +1,4 @@
-# GPX Viewer
+# GPX Routes
 
 Prosta aplikacja webowa do wyświetlania tras z plików GPX na mapie. Bez frameworków, bez bundlera — czysty HTML, CSS i JavaScript (Vanilla JS) oparty na mapie OpenStreetMap.
 

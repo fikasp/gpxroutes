@@ -1,4 +1,4 @@
-// @p GPX Viewer
+// @p GPX Routes
 //========================
 //#region @r UTILITIES
 //========================
@@ -812,7 +812,7 @@ const CONFIG = {
 		minMapWidth: 0,
 	},
 	storage: {
-		settings: 'GPV_settings',
+		settings: 'GPR_settings',
 	},
 	defaults: {
 		trackColor: '#404040',
