@@ -41,6 +41,9 @@ Prosta aplikacja webowa do wyświetlania tras z plików GPX na mapie. Bez framew
 
 ## ⏱️ Historia wersji
 
+* **v1.4 (2026-10-20):**
+  * Zmiana stylu przycisku „Wczytaj”, podczas przeciągania.
+
 * **v1.3 (2026-09-30):**
   * Wczytywanie plików GPX przez drag and drop na przycisk „Wczytaj”.
   * Wskaźnik poziomu powiększenia w lewym dolnym rogu.

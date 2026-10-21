@@ -421,9 +421,8 @@ main {
 }
 
 .panel__button--dragover {
-	background: var(--green);
-	outline: 2px dashed var(--green-hover);
-	outline-offset: -4px;
+	background-color: var(--green) !important;
+	box-shadow: 0 0 0 2px var(--green-hover) inset;
 }
 
 /* @b Toggle button */
