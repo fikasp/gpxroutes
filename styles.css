@@ -256,6 +256,36 @@ main {
 	font-weight: bold;
 }
 
+/* @b Basemap switch */
+/*------------------------*/
+.panel__basemap {
+	display: flex;
+	gap: 4px;
+	background: rgba(80, 80, 80, 0.3);
+	padding: 4px;
+	border-radius: 5px;
+}
+
+.panel__basemap-btn {
+	flex: 1;
+	padding: 7px 8px;
+	background: transparent;
+	color: var(--gray8);
+	font-size: 0.85rem;
+	cursor: pointer;
+	border-radius: 4px;
+	transition: var(--transition);
+}
+
+.panel__basemap-btn:hover {
+	color: var(--white);
+}
+
+.panel__basemap-btn--active {
+	background: var(--blue);
+	color: var(--white);
+}
+
 /* @b Global style */
 /*------------------------*/
 .panel__global {

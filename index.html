@@ -10,7 +10,7 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<!-- Font Avesome -->
 		<link rel="stylesheet" href="vendor/fontawesome.css" />
-		<!-- Leaflet (mapa OpenStreetMap) -->
+		<!-- Leaflet (mapa OpenStreetMap / OpenTopoMap) -->
 		<link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
 		<!-- Styles -->
 		<link rel="stylesheet" href="styles.css" />
@@ -37,6 +37,10 @@
 				<div id="panel-resizer" class="panel__resizer"></div>
 				<div class="panel__header">
 					<h2 class="panel__title">Trasy (<span id="panel-count">0</span>)</h2>
+				</div>
+				<div id="panel-basemap" class="panel__basemap" title="Podkład mapy">
+					<button class="panel__basemap-btn" data-basemap="osm">Standardowa</button>
+					<button class="panel__basemap-btn" data-basemap="topo">Turystyczna</button>
 				</div>
 				<div class="panel__global">
 					<div class="panel__global-top">

@@ -12,7 +12,8 @@ Prosta aplikacja webowa do wyświetlania tras z plików GPX na mapie. Bez framew
 * **Wskaźnik powiększenia** w lewym dolnym rogu mapy.
 * **Usuwanie pojedynczych tras** przyciskiem **×** oraz **Wyczyść** (z potwierdzeniem) usuwające wszystkie.
 * **Tryb pełnoekranowy** (np. F11) ukrywa nagłówek i stopkę — mapa i panel zajmują cały ekran.
-* **Mapa OpenStreetMap** (Leaflet) — bez kluczy API, bez opłat.
+* **Przełącznik podkładu mapy** — standardowa mapa OpenStreetMap lub turystyczna OpenTopoMap (poziomice, cieniowanie terenu, szlaki). Wybór jest zapamiętywany.
+* **Mapa** (Leaflet + OpenStreetMap / OpenTopoMap) — bez kluczy API, bez opłat.
 
 ## 🏛️ Struktura projektu
 
@@ -27,7 +28,7 @@ Prosta aplikacja webowa do wyświetlania tras z plików GPX na mapie. Bez framew
 * **HTML5 + CSS3**
 * **JavaScript (ES6)**
 * **Leaflet** — biblioteka do interaktywnych map
-* **OpenStreetMap** — źródło kafelków mapowych
+* **OpenStreetMap** i **OpenTopoMap** — źródła kafelków mapowych (dane © OpenStreetMap contributors, SRTM; styl © OpenTopoMap, CC-BY-SA)
 
 ## 📄 Instrukcja użycia
 
@@ -37,9 +38,13 @@ Prosta aplikacja webowa do wyświetlania tras z plików GPX na mapie. Bez framew
 4. Przy każdej trasie zmień **kolor** (kwadrat po lewej) i **grubość** (suwak).
 5. Blok **„Wszystkie trasy”** zmienia kolor i grubość każdej trasy jednocześnie.
 6. **„Wyczyść”** usuwa wszystkie trasy po potwierdzeniu.
-7. Klawisz **F2** zwija/rozwija panel.
+7. Przełącznik **„Standardowa / Turystyczna”** u góry panelu zmienia podkład mapy.
+8. Klawisz **F2** zwija/rozwija panel.
 
 ## ⏱️ Historia wersji
+
+* **v1.5 (2026-10-28):**
+  * Dodanie przełącznika podkładu mapy (OpenStreetMap / OpenTopoMap).
 
 * **v1.4 (2026-10-20):**
   * Zmiana stylu przycisku „Wczytaj”, podczas przeciągania.

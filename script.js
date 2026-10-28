@@ -596,6 +596,7 @@ const MapView = {
 	// @b Private
 	//------------------------
 	_instance: null,
+	_tileLayer: null,
 
 	// @b Initialize
 	//------------------------
@@ -613,15 +614,27 @@ const MapView = {
 			wheelPxPerZoomLevel: CONFIG.map.wheelPxPerZoomLevel,
 		}).setView(center, zoom)
 
-		L.tileLayer(CONFIG.map.tileUrl, {
-			attribution: CONFIG.map.tileAttribution,
-			maxZoom: CONFIG.map.maxZoom,
-		}).addTo(MapView._instance)
+		MapView.setBasemap(STATE.basemap)
 
 		MapView._instance.on('moveend zoomend', Tools.debounce(Effects.saveMapView, 300))
 		MapView._instance.on('zoom zoomend', Effects.updateZoomIndicator)
 		Effects.updateZoomIndicator()
 		Log.exit()
+	},
+
+	// @b Set basemap
+	//------------------------
+	setBasemap: (key) => {
+		const basemap = CONFIG.map.basemaps[key]
+		if (!basemap) return
+
+		if (MapView._tileLayer) MapView._instance.removeLayer(MapView._tileLayer)
+
+		MapView._tileLayer = L.tileLayer(basemap.url, {
+			attribution: basemap.attribution,
+			maxZoom: CONFIG.map.maxZoom,
+			maxNativeZoom: basemap.maxNativeZoom,
+		}).addTo(MapView._instance)
 	},
 
 	// @b Add track
@@ -795,8 +808,19 @@ const CONFIG = {
 		zoomSnap: 0.5,
 		zoomDelta: 0.5,
 		wheelPxPerZoomLevel: 120,
-		tileUrl: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-		tileAttribution: '&copy; OpenStreetMap contributors',
+		basemaps: {
+			osm: {
+				url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+				attribution: '&copy; OpenStreetMap contributors',
+				maxNativeZoom: 19,
+			},
+			topo: {
+				url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+				attribution:
+					'Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap (CC-BY-SA)',
+				maxNativeZoom: 17,
+			},
+		},
 		headerHeight: 48,
 		footerHeight: 36,
 	},
@@ -817,6 +841,7 @@ const CONFIG = {
 	defaults: {
 		trackColor: '#404040',
 		waterColor: '#446688',
+		basemap: 'osm',
 		panelCollapsed: false,
 		panelWidth: 300,
 	},
@@ -834,6 +859,7 @@ const STATE = {
 	mapView: null,
 	globalColor: CONFIG.defaults.trackColor,
 	globalWeight: CONFIG.track.defaultWeight,
+	basemap: CONFIG.defaults.basemap,
 	fullscreen: false,
 	isDragging: false,
 }
@@ -859,6 +885,7 @@ const $ = {
 		importButton: DOM.get('#panel-import-btn'),
 		importInput: DOM.get('#panel-import-input'),
 		clearButton: DOM.getById('panel-clear'),
+		basemap: DOM.getById('panel-basemap'),
 		globalColor: DOM.getById('panel-global-color'),
 		globalRange: DOM.getById('panel-global-range'),
 		globalWeight: DOM.getById('panel-global-weight'),
@@ -965,6 +992,7 @@ const Effects = {
 			mapView: STATE.mapView,
 			globalColor: STATE.globalColor,
 			globalWeight: STATE.globalWeight,
+			basemap: STATE.basemap,
 		})
 	},
 
@@ -986,6 +1014,14 @@ const Effects = {
 			DOM.addClass($.panel.element, 'main__panel--expanded')
 		}
 		Effects.saveSettings()
+	},
+
+	// @b Update basemap buttons
+	//------------------------
+	updateBasemapButtons: () => {
+		DOM.getAll('.panel__basemap-btn', $.panel.basemap).forEach((button) => {
+			button.classList.toggle('panel__basemap-btn--active', button.dataset.basemap === STATE.basemap)
+		})
 	},
 
 	// @b Update zoom indicator
@@ -1040,6 +1076,7 @@ const Logic = {
 		STATE.panelWidth = settings.panelWidth ?? CONFIG.defaults.panelWidth
 		STATE.mapView = settings.mapView ?? null
 		if (/^#[0-9a-f]{6}$/i.test(settings.globalColor)) STATE.globalColor = settings.globalColor
+		if (Object.hasOwn(CONFIG.map.basemaps, settings.basemap)) STATE.basemap = settings.basemap
 		const weight = Number(settings.globalWeight)
 		if (Number.isFinite(weight)) {
 			STATE.globalWeight = Math.max(CONFIG.track.minWeight, Math.min(Math.round(weight), CONFIG.track.maxWeight))
@@ -1097,6 +1134,16 @@ const Logic = {
 		if (!track) return
 		track.weight = weight
 		MapView.styleTrack(track.layer, track.color, track.weight)
+	},
+
+	// @b Set basemap
+	//------------------------
+	setBasemap: (key) => {
+		if (!Object.hasOwn(CONFIG.map.basemaps, key)) return
+		STATE.basemap = key
+		MapView.setBasemap(key)
+		Effects.updateBasemapButtons()
+		Effects.saveSettings()
 	},
 
 	// @b Set color for all tracks
@@ -1219,6 +1266,13 @@ const Handlers = {
 		const weight = Number(e.target.value)
 		Logic.setAllWeight(weight)
 		DOM.setText($.panel.globalWeight, `${weight} px`)
+	},
+
+	// @b Basemap click
+	//------------------------
+	basemapClick: (e) => {
+		const button = e.target.closest('.panel__basemap-btn')
+		if (button) Logic.setBasemap(button.dataset.basemap)
 	},
 
 	// @b Import drag over (drop files on the button)
@@ -1381,6 +1435,7 @@ const Listeners = {
 		DOM.on(document, 'dragover', Handlers.preventFileDrop)
 		DOM.on(document, 'drop', Handlers.preventFileDrop)
 		DOM.on($.panel.clearButton, 'click', Handlers.clearAllClick)
+		DOM.on($.panel.basemap, 'click', Handlers.basemapClick)
 		DOM.on($.panel.globalColor, 'input', Handlers.globalColorInput)
 		DOM.on($.panel.globalRange, 'input', Handlers.globalWeightInput)
 		DOM.on($.panel.resizer, 'mousedown', Handlers.resizerMouseDown)
@@ -1414,9 +1469,10 @@ const App = {
 		Panel.render()
 		Panel.initGlobalControls()
 		Effects.applyPanelWidth()
+		Effects.updateBasemapButtons()
 		Effects.updatePanelVisibility()
-		Effects.updateFavicon()
 		Effects.updateFullscreen()
+		Effects.updateFavicon()
 		Log.exit()
 		Log.end()
 	},
