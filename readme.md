@@ -7,12 +7,11 @@ Prosta aplikacja webowa do wyświetlania tras z plików GPX na mapie. Bez framew
 * **Wczytywanie wielu plików GPX** — w oknie wyboru można zaznaczyć dowolną liczbę plików.
 * **Lista tras** w bocznym panelu (nazwa pliku + długość w km), kliknięcie trasy wyśrodkowuje na niej mapę.
 * **Kolor i grubość linii** ustawiane osobno dla każdej trasy (wybór koloru + suwak).
-* **Zmiana koloru i grubości wszystkich tras naraz** — blok „Wszystkie trasy” nad listą. Ustawione wartości są zapamiętywane i stają się domyślnym kolorem i grubością każdej nowo wczytanej trasy.
+* **Zmiana koloru i grubości wszystkich tras naraz** — blok „Wszystkie trasy” nad listą. 
 * **Drag and drop** — pliki `.gpx` można przeciągnąć na przycisk „Wczytaj”.
 * **Wskaźnik powiększenia** w lewym dolnym rogu mapy.
 * **Usuwanie pojedynczych tras** przyciskiem **×** oraz **Wyczyść** (z potwierdzeniem) usuwające wszystkie.
 * **Tryb pełnoekranowy** (np. F11) ukrywa nagłówek i stopkę — mapa i panel zajmują cały ekran.
-* **Przełącznik podkładu mapy** — standardowa mapa OpenStreetMap lub turystyczna OpenTopoMap (poziomice, cieniowanie terenu, szlaki). Wybór jest zapamiętywany.
 * **Mapa** (Leaflet + OpenStreetMap / OpenTopoMap) — bez kluczy API, bez opłat.
 
 ## 🏛️ Struktura projektu
@@ -28,7 +27,9 @@ Prosta aplikacja webowa do wyświetlania tras z plików GPX na mapie. Bez framew
 * **HTML5 + CSS3**
 * **JavaScript (ES6)**
 * **Leaflet** — biblioteka do interaktywnych map
-* **OpenStreetMap** i **OpenTopoMap** — źródła kafelków mapowych (dane © OpenStreetMap contributors, SRTM; styl © OpenTopoMap, CC-BY-SA)
+* **OpenStreetMap** i **OpenTopoMap** — źródła kafelków mapowych (dane © OpenStreetMap contributors, SRTM; styl © OpenTopoMap)
+* **Freemap Slovakia (Outdoor)** — podkład ze szlakami w kolorach oznakowania (© Freemap Slovakia, © OpenStreetMap contributors)
+* **Esri World Hillshade** — cieniowanie terenu nałożone na OpenStreetMap (© Esri)
 
 ## 📄 Instrukcja użycia
 
@@ -38,10 +39,14 @@ Prosta aplikacja webowa do wyświetlania tras z plików GPX na mapie. Bez framew
 4. Przy każdej trasie zmień **kolor** (kwadrat po lewej) i **grubość** (suwak).
 5. Blok **„Wszystkie trasy”** zmienia kolor i grubość każdej trasy jednocześnie.
 6. **„Wyczyść”** usuwa wszystkie trasy po potwierdzeniu.
-7. Przełącznik **„Standardowa / Turystyczna”** u góry panelu zmienia podkład mapy.
+7. Lista **„Podkład mapy”** u góry panelu zmienia wygląd mapy.
 8. Klawisz **F2** zwija/rozwija panel.
 
 ## ⏱️ Historia wersji
+
+* **v1.6 (2026-10-28):**
+  * Dodanie podkładu „Mapa outdoorowa” (Freemap) ze szlakami w kolorach oznakowania.
+  * Dodanie podkładu „Mapa standardowa z cieniowaniem” (OpenStreetMap + Esri World Hillshade).
 
 * **v1.5 (2026-10-28):**
   * Dodanie przełącznika podkładu mapy (OpenStreetMap / OpenTopoMap).

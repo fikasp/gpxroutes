@@ -622,7 +622,7 @@ const MapView = {
 		Log.exit()
 	},
 
-	// @b Set basemap
+	// @b Set basemap (replaces the tile layer)
 	//------------------------
 	setBasemap: (key) => {
 		const basemap = CONFIG.map.basemaps[key]
@@ -630,11 +630,30 @@ const MapView = {
 
 		if (MapView._tileLayer) MapView._instance.removeLayer(MapView._tileLayer)
 
-		MapView._tileLayer = L.tileLayer(basemap.url, {
-			attribution: basemap.attribution,
-			maxZoom: CONFIG.map.maxZoom,
-			maxNativeZoom: basemap.maxNativeZoom,
-		}).addTo(MapView._instance)
+		const layers = [
+			L.tileLayer(basemap.url, {
+				attribution: basemap.attribution,
+				maxZoom: CONFIG.map.maxZoom,
+				maxNativeZoom: basemap.maxNativeZoom,
+				zIndex: 1,
+			}),
+		]
+
+		// Optional shading layer (hillshade) drawn on top of the base tiles
+		if (basemap.shading) {
+			layers.push(
+				L.tileLayer(basemap.shading.url, {
+					attribution: basemap.shading.attribution,
+					maxZoom: CONFIG.map.maxZoom,
+					maxNativeZoom: basemap.shading.maxNativeZoom,
+					opacity: basemap.shading.opacity,
+					className: 'leaflet-hillshade',
+					zIndex: 2,
+				}),
+			)
+		}
+
+		MapView._tileLayer = L.layerGroup(layers).addTo(MapView._instance)
 	},
 
 	// @b Add track
@@ -814,6 +833,22 @@ const CONFIG = {
 				attribution: '&copy; OpenStreetMap contributors',
 				maxNativeZoom: 19,
 			},
+			osmShade: {
+				url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+				attribution: '&copy; OpenStreetMap contributors',
+				maxNativeZoom: 19,
+				shading: {
+					url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}',
+					attribution: 'Hillshade &copy; Esri',
+					maxNativeZoom: 15,
+					opacity: 0.6,
+				},
+			},
+			outdoor: {
+				url: 'https://outdoor.tiles.freemap.sk/{z}/{x}/{y}',
+				attribution: '&copy; Freemap Slovakia, &copy; OpenStreetMap contributors',
+				maxNativeZoom: 18,
+			},
 			topo: {
 				url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
 				attribution:
@@ -831,7 +866,7 @@ const CONFIG = {
 		maxWeight: 9,
 	},
 	panel: {
-		minWidth: 300,
+		minWidth: 320,
 		maxWidth: 900,
 		minMapWidth: 0,
 	},
@@ -1016,12 +1051,10 @@ const Effects = {
 		Effects.saveSettings()
 	},
 
-	// @b Update basemap buttons
+	// @b Update basemap select
 	//------------------------
-	updateBasemapButtons: () => {
-		DOM.getAll('.panel__basemap-btn', $.panel.basemap).forEach((button) => {
-			button.classList.toggle('panel__basemap-btn--active', button.dataset.basemap === STATE.basemap)
-		})
+	updateBasemapSelect: () => {
+		$.panel.basemap.value = STATE.basemap
 	},
 
 	// @b Update zoom indicator
@@ -1142,7 +1175,7 @@ const Logic = {
 		if (!Object.hasOwn(CONFIG.map.basemaps, key)) return
 		STATE.basemap = key
 		MapView.setBasemap(key)
-		Effects.updateBasemapButtons()
+		Effects.updateBasemapSelect()
 		Effects.saveSettings()
 	},
 
@@ -1268,11 +1301,10 @@ const Handlers = {
 		DOM.setText($.panel.globalWeight, `${weight} px`)
 	},
 
-	// @b Basemap click
+	// @b Basemap change
 	//------------------------
-	basemapClick: (e) => {
-		const button = e.target.closest('.panel__basemap-btn')
-		if (button) Logic.setBasemap(button.dataset.basemap)
+	basemapChange: (e) => {
+		Logic.setBasemap(e.target.value)
 	},
 
 	// @b Import drag over (drop files on the button)
@@ -1435,7 +1467,7 @@ const Listeners = {
 		DOM.on(document, 'dragover', Handlers.preventFileDrop)
 		DOM.on(document, 'drop', Handlers.preventFileDrop)
 		DOM.on($.panel.clearButton, 'click', Handlers.clearAllClick)
-		DOM.on($.panel.basemap, 'click', Handlers.basemapClick)
+		DOM.on($.panel.basemap, 'change', Handlers.basemapChange)
 		DOM.on($.panel.globalColor, 'input', Handlers.globalColorInput)
 		DOM.on($.panel.globalRange, 'input', Handlers.globalWeightInput)
 		DOM.on($.panel.resizer, 'mousedown', Handlers.resizerMouseDown)
@@ -1468,11 +1500,11 @@ const App = {
 		Listeners.init()
 		Panel.render()
 		Panel.initGlobalControls()
+		Effects.updateBasemapSelect()
 		Effects.applyPanelWidth()
-		Effects.updateBasemapButtons()
 		Effects.updatePanelVisibility()
-		Effects.updateFullscreen()
 		Effects.updateFavicon()
+		Effects.updateFullscreen()
 		Log.exit()
 		Log.end()
 	},

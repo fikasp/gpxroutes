@@ -38,10 +38,12 @@
 				<div class="panel__header">
 					<h2 class="panel__title">Trasy (<span id="panel-count">0</span>)</h2>
 				</div>
-				<div id="panel-basemap" class="panel__basemap" title="Podkład mapy">
-					<button class="panel__basemap-btn" data-basemap="osm">Standardowa</button>
-					<button class="panel__basemap-btn" data-basemap="topo">Turystyczna</button>
-				</div>
+				<select id="panel-basemap" class="panel__select" title="Podkład mapy">
+					<option value="osmShade">Mapa cieniowana (OpenStreetMap)</option>
+					<option value="osm">Mapa standardowa (OpenStreetMap)</option>
+					<option value="topo">Mapa turystyczna (OpenTopoMap)</option>
+					<option value="outdoor">Mapa outdoorowa (Freemap)</option>
+				</select>
 				<div class="panel__global">
 					<div class="panel__global-top">
 						<input type="color" id="panel-global-color" class="panel__item-color" title="Kolor wszystkich tras" />

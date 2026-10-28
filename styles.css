@@ -170,6 +170,11 @@ main {
 	user-select: none;
 	z-index: 500;
 }
+/* @b Hillshade layer */
+/*------------------------*/
+.leaflet-hillshade {
+	mix-blend-mode: multiply;
+}
 /* @b Leaflet tooltip */
 /*------------------------*/
 .leaflet-tooltip {
@@ -256,33 +261,29 @@ main {
 	font-weight: bold;
 }
 
-/* @b Basemap switch */
+/* @b Map select */
 /*------------------------*/
-.panel__basemap {
-	display: flex;
-	gap: 4px;
-	background: rgba(80, 80, 80, 0.3);
-	padding: 4px;
+.panel__select {
+	width: 100%;
+	padding: 10px;
+	background: var(--gray3);
+	color: var(--white);
+	font-size: 0.95rem;
 	border-radius: 5px;
-}
-
-.panel__basemap-btn {
-	flex: 1;
-	padding: 7px 8px;
-	background: transparent;
-	color: var(--gray8);
-	font-size: 0.85rem;
 	cursor: pointer;
-	border-radius: 4px;
 	transition: var(--transition);
 }
 
-.panel__basemap-btn:hover {
-	color: var(--white);
+.panel__select:hover {
+	background: var(--gray4);
 }
 
-.panel__basemap-btn--active {
-	background: var(--blue);
+.panel__select:focus {
+	outline: 1px solid var(--blue);
+}
+
+.panel__select option {
+	background: var(--gray3);
 	color: var(--white);
 }
 
@@ -420,7 +421,7 @@ main {
 	color: var(--gray8);
 }
 
-/* @b Actions (footer buttons) */
+/* @b Actions */
 /*------------------------*/
 .panel__actions {
 	display: flex;
@@ -455,33 +456,6 @@ main {
 	box-shadow: 0 0 0 2px var(--green-hover) inset;
 }
 
-/* @b Toggle button */
-/*------------------------*/
-.panel__toggle {
-	position: fixed;
-	top: 0;
-	right: 0;
-	width: 42px;
-	height: 42px;
-	background: transparent;
-	color: var(--white);
-	cursor: pointer;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	transition: var(--transition);
-	z-index: 800;
-}
-
-.panel__toggle:hover {
-	color: var(--blue)
-}
-
-.panel__toggle::before {
-	content: '‹';
-	font-size: 2rem;
-	font-weight: bold;
-}
 /*#endregion*/
 /*========================*/
 /*#region @r FOOTER */
