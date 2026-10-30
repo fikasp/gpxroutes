@@ -1,18 +1,16 @@
-# GPX Routes
+# GPX Studio
 
-Prosta aplikacja webowa do wyświetlania tras z plików GPX na mapie. Bez frameworków, bez bundlera — czysty HTML, CSS i JavaScript (Vanilla JS) oparty na mapie OpenStreetMap.
+Prosta aplikacja webowa do przeglądania tras z plików GPX oraz tworzenia i edycji punktów na mapie. Bez frameworków, bez bundlera — czysty HTML, CSS i JavaScript (Vanilla JS) oparty na mapie OpenStreetMap.
 
 ## 🔗 Kluczowe funkcje
 
-* **Wczytywanie wielu plików GPX** — w oknie wyboru można zaznaczyć dowolną liczbę plików.
-* **Lista tras** w bocznym panelu (nazwa pliku + długość w km), kliknięcie trasy wyśrodkowuje na niej mapę.
-* **Kolor i grubość linii** ustawiane osobno dla każdej trasy (wybór koloru + suwak).
-* **Zmiana koloru i grubości wszystkich tras naraz** — blok „Wszystkie trasy” nad listą. 
-* **Drag and drop** — pliki `.gpx` można przeciągnąć na przycisk „Wczytaj”.
-* **Wskaźnik powiększenia** w lewym dolnym rogu mapy.
-* **Usuwanie pojedynczych tras** przyciskiem **×** oraz **Wyczyść** (z potwierdzeniem) usuwające wszystkie.
-* **Tryb pełnoekranowy** (np. F11) ukrywa nagłówek i stopkę — mapa i panel zajmują cały ekran.
-* **Mapa** (Leaflet + OpenStreetMap / OpenTopoMap) — bez kluczy API, bez opłat.
+* **Dwie zakładki w panelu: Trasy | Punkty** — z licznikami, obie warstwy są widoczne na mapie jednocześnie.
+* **Jeden przycisk „Wczytaj”** (także drag and drop na przycisk) — wiele plików GPX naraz. Trasy trafiają do zakładki „Trasy”, punkty (`wpt`) do zakładki „Punkty”.
+* **Trasy:** lista z nazwą i długością w km, kolor (paleta) i grubość linii osobno dla każdej trasy oraz dla wszystkich naraz. Domyślny kolor i grubość są zapamiętywane.
+* **Punkty:** tryb dodawania (przycisk **＋ Dodawanie**, klik na mapie), edycja nazwy i opisu w popupie, przesuwanie markera, sortowanie A→Z i ręczna kolejność (przeciągnij-upuść), edytowalna nazwa pliku, **Zapisz** do pliku GPX. Punkty są zapamiętywane w `localStorage`.
+* **Lista wyboru podkładu mapy** — OpenStreetMap, OpenStreetMap z cieniowaniem terenu, OpenTopoMap (turystyczna) lub Outdoor od Freemap (szlaki w kolorach oznakowania).
+* **Wskaźnik powiększenia** w lewym dolnym rogu mapy, zoom co 0,5 poziomu.
+* **Tryb pełnoekranowy** (np. F11) ukrywa nagłówek i stopkę.
 
 ## 🏛️ Struktura projektu
 
@@ -33,16 +31,23 @@ Prosta aplikacja webowa do wyświetlania tras z plików GPX na mapie. Bez framew
 
 ## 📄 Instrukcja użycia
 
-1. **Otwórz `index.html`** w przeglądarce.
-2. Kliknij **„Wczytaj”** i zaznacz jeden lub wiele plików `.gpx` albo przeciągnij je na ten przycisk.
-3. Trasy pojawią się na mapie i na liście, a widok dopasuje się do wczytanych plików.
-4. Przy każdej trasie zmień **kolor** (kwadrat po lewej) i **grubość** (suwak).
-5. Blok **„Wszystkie trasy”** zmienia kolor i grubość każdej trasy jednocześnie.
-6. **„Wyczyść”** usuwa wszystkie trasy po potwierdzeniu.
-7. Lista **„Podkład mapy”** u góry panelu zmienia wygląd mapy.
-8. Klawisz **F2** zwija/rozwija panel.
+* **Otwórz `index.html`** w przeglądarce.
+* Kliknij **„Wczytaj”** (albo przeciągnij pliki `.gpx` na ten przycisk), aby wczytać trasy i/lub punkty.
+* W zakładce **Trasy** zmieniaj kolor (kliknij kwadrat i wybierz z palety) i grubość (przycisk z liczbą pikseli).
+* W zakładce **Punkty** włącz **＋ Dodawanie** i klikaj na mapie, aby dodać punkty. **Esc** wyłącza tryb dodawania.
+* **„Zapisz”** (zakładka Punkty) pobiera plik GPX z punktami; nazwę pliku zmienisz klikając nazwę nad listą.
+* Lista **„Podkład mapy”** zmienia wygląd mapy.
+* Klawisz **F2** zwija/rozwija panel.
 
 ## ⏱️ Historia wersji
+
+* **v2.0 (2026-10-31):**
+  * Integracja aplikacji z GPX points - zakładki Trasy i Punkty we wspólnym panelu.
+  * Wprowadzenie dodatkowego Tryb dodawania punktów (+ Dodawanie).
+
+* **v1.7 (2026-10-31):**
+  * Zastąpienie systemowego wyboru koloru małą paletą kolorów.
+  * Zamiana stale wyświetlanego suwaka szerokości trasy na dedykowane okienko.
 
 * **v1.6 (2026-10-28):**
   * Dodanie podkładu „Mapa outdoorowa” (Freemap) ze szlakami w kolorach oznakowania.
@@ -70,3 +75,9 @@ Prosta aplikacja webowa do wyświetlania tras z plików GPX na mapie. Bez framew
 * **v1.0 (2026-09-30):** Pierwsza wersja aplikacji.
   * Wczytywanie wielu plików GPX i wyświetlanie tras na mapie.
   * Zmiana koloru i grubości linii dla każdej trasy.
+
+## ✉️ Kontakt
+
+Pytania, sugestie lub chęć współpracy: [fikasp@gmail.com](mailto:fikasp@gmail.com).
+
+Dziękuję za korzystanie z aplikacji!

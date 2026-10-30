@@ -1,4 +1,4 @@
-<!-- @p GPX Routes
+<!-- @p GPX Studio
 ------------------------->
 <!doctype html>
 <html lang="pl">
@@ -15,7 +15,7 @@
 		<!-- Styles -->
 		<link rel="stylesheet" href="styles.css" />
 		<!-- Title -->
-		<title>GPX Routes</title>
+		<title>GPX Studio</title>
 	</head>
 	<!--#endregion -->
 	<!--====================-->
@@ -25,7 +25,7 @@
 		<!------------------------
 		 @g HEADER
 		------------------------->
-		<header>GPX Routes</header>
+		<header>GPX Studio</header>
 		<!------------------------
 		 @g MAIN
 		------------------------->
@@ -35,30 +35,51 @@
 			<!-- Panel -->
 			<aside id="panel" class="main__panel">
 				<div id="panel-resizer" class="panel__resizer"></div>
-				<div class="panel__header">
-					<h2 class="panel__title">Trasy (<span id="panel-count">0</span>)</h2>
+				<!-- Tabs -->
+				<div id="panel-tabs" class="panel__tabs">
+					<button class="panel__tab panel__tab--active" data-tab="routes">Trasy (<span id="routes-count">0</span>)</button>
+					<button class="panel__tab" data-tab="points">Punkty (<span id="points-count">0</span>)</button>
 				</div>
+				<!-- Basemap -->
 				<select id="panel-basemap" class="panel__select" title="Podkład mapy">
 					<option value="osmShade">Mapa cieniowana (OpenStreetMap)</option>
 					<option value="osm">Mapa standardowa (OpenStreetMap)</option>
 					<option value="topo">Mapa turystyczna (OpenTopoMap)</option>
 					<option value="outdoor">Mapa outdoorowa (Freemap)</option>
 				</select>
-				<div class="panel__global">
-					<div class="panel__global-top">
-						<input type="color" id="panel-global-color" class="panel__item-color" title="Kolor wszystkich tras" />
-						<span class="panel__global-label">Wszystkie trasy</span>
+				<!-- Section: routes -->
+				<div id="section-routes" class="panel__section">
+					<div class="panel__global">
+						<div class="panel__global-top">
+							<button id="panel-global-color" class="panel__item-color" title="Kolor wszystkich tras"></button>
+							<button id="panel-global-weight-btn" class="panel__item-weight-btn" title="Szerokość wszystkich tras">5px</button>
+							<span class="panel__global-label">Wszystkie trasy</span>
+						</div>
 					</div>
-					<div class="panel__item-width">
-						<span id="panel-global-weight" class="panel__item-weight"></span>
-						<input type="range" id="panel-global-range" class="panel__item-range" title="Grubość wszystkich tras" />
-					</div>
+					<ul id="panel-routes-list" class="panel__list"></ul>
 				</div>
-				<ul id="panel-list" class="panel__list"></ul>
+				<!-- Section: points -->
+				<div id="section-points" class="panel__section" hidden>
+					<div class="panel__toolbar">
+						<span
+							id="panel-file-name"
+							class="panel__file-name"
+							contenteditable="true"
+							spellcheck="false"
+							title="Nazwa pliku GPX przy zapisie (kliknij, aby zmienić)"
+							>Punkty</span
+						>
+						<button id="panel-add-mode" class="panel__tool" title="Tryb dodawania: klikaj na mapie, aby dodać punkty (Esc wyłącza)">＋ Dodawanie</button>
+						<button id="panel-sort" class="panel__tool" title="Sortuj alfabetycznie">A→Z</button>
+					</div>
+					<ul id="panel-points-list" class="panel__list"></ul>
+				</div>
+				<!-- Actions -->
 				<div class="panel__actions">
 					<input type="file" id="panel-import-input" accept=".gpx" multiple style="display: none" />
 
 					<button id="panel-import-btn" class="panel__button panel__button--import">Wczytaj</button>
+					<button id="panel-save" class="panel__button panel__button--save" hidden>Zapisz</button>
 					<button id="panel-clear" class="panel__button panel__button--clear">Wyczyść</button>
 				</div>
 			</aside>
@@ -98,6 +119,33 @@
 			<div class="modal__buttons">
 				<button class="modal__button modal__button--cancel">Anuluj</button>
 				<button class="modal__button modal__button--confirm">Potwierdź</button>
+			</div>
+		</template>
+		<!------------------------
+		 @g TEMPLATES
+		------------------------->
+		<!-- @b Map popup
+		------------------------->
+		<template id="map-popup">
+			<div class="map-popup">
+				<div class="map-popup__title"></div>
+				<div class="map-popup__desc"></div>
+				<div class="map-popup__actions">
+					<button class="map-popup__btn-edit">✎ Edytuj</button>
+					<button class="map-popup__btn-delete">× Usuń</button>
+				</div>
+			</div>
+		</template>
+		<!-- @b Map popup form
+		------------------------->
+		<template id="map-popup-form">
+			<div class="map-popup map-popup--form">
+				<input type="text" class="map-popup__input" placeholder="Nazwa obiektu" maxlength="100" />
+				<textarea class="map-popup__textarea" placeholder="Opis (opcjonalnie)" rows="2"></textarea>
+				<div class="map-popup__actions">
+					<button class="map-popup__btn-cancel">Anuluj</button>
+					<button class="map-popup__btn-save">Zapisz</button>
+				</div>
 			</div>
 		</template>
 		<!------------------------

@@ -1,4 +1,4 @@
-// @p GPX Routes
+// @p GPX Studio
 //========================
 //#region @r UTILITIES
 //========================
@@ -612,17 +612,21 @@ const MapView = {
 			zoomSnap: CONFIG.map.zoomSnap,
 			zoomDelta: CONFIG.map.zoomDelta,
 			wheelPxPerZoomLevel: CONFIG.map.wheelPxPerZoomLevel,
+			closePopupOnClick: false,
 		}).setView(center, zoom)
 
 		MapView.setBasemap(STATE.basemap)
 
+		MapView._instance.on('click', Handlers.mapClick)
+		MapView._instance.on('popupopen', () => (STATE.popupOpen = true))
+		MapView._instance.on('popupclose', () => (STATE.popupOpen = false))
 		MapView._instance.on('moveend zoomend', Tools.debounce(Effects.saveMapView, 300))
 		MapView._instance.on('zoom zoomend', Effects.updateZoomIndicator)
 		Effects.updateZoomIndicator()
 		Log.exit()
 	},
 
-	// @b Set basemap (replaces the tile layer)
+	// @b Set basemap
 	//------------------------
 	setBasemap: (key) => {
 		const basemap = CONFIG.map.basemaps[key]
@@ -691,49 +695,244 @@ const MapView = {
 		const bounds = L.latLngBounds([])
 		boundsList.forEach((b) => bounds.extend(b))
 
-		const panelWidth = STATE.panelCollapsed ? 0 : STATE.panelWidth
+		const padding = Pure.getMapPadding()
 
 		MapView._instance.fitBounds(bounds, {
-			paddingTopLeft: [20, (STATE.fullscreen ? 0 : CONFIG.map.headerHeight) + 20],
-			paddingBottomRight: [panelWidth + 20, (STATE.fullscreen ? 0 : CONFIG.map.footerHeight) + 20],
+			paddingTopLeft: padding.topLeft,
+			paddingBottomRight: padding.bottomRight,
+			maxZoom: CONFIG.map.fitMaxZoom,
 		})
+	},
+
+	// @b Create view popup
+	//------------------------
+	createViewPopup: (id, name, desc) => {
+		const fragment = DOM.getTemplate('map-popup')
+		const wrapper = DOM.create({ type: 'div' })
+		wrapper.appendChild(fragment)
+
+		DOM.setText(DOM.get('.map-popup__title', wrapper), name)
+		DOM.setText(DOM.get('.map-popup__desc', wrapper), desc || '')
+
+		DOM.on(DOM.get('.map-popup__btn-edit', wrapper), 'click', (e) => {
+			L.DomEvent.stop(e)
+			Handlers.editWaypointClick(id)
+		})
+		DOM.on(DOM.get('.map-popup__btn-delete', wrapper), 'click', (e) => {
+			L.DomEvent.stop(e)
+			Handlers.deleteWaypointClick(id)
+		})
+
+		return wrapper
+	},
+
+	// @b Create form popup
+	//------------------------
+	createFormPopup: (name, desc, onSave, onCancel) => {
+		const fragment = DOM.getTemplate('map-popup-form')
+		const wrapper = DOM.create({ type: 'div' })
+		wrapper.appendChild(fragment)
+
+		const input = DOM.get('.map-popup__input', wrapper)
+		const textarea = DOM.get('.map-popup__textarea', wrapper)
+
+		DOM.setValue(input, name)
+		DOM.setValue(textarea, desc)
+
+		DOM.on(DOM.get('.map-popup__btn-cancel', wrapper), 'click', (e) => {
+			L.DomEvent.stop(e)
+			onCancel()
+		})
+
+		const save = (e) => {
+			if (e) L.DomEvent.stop(e)
+			const newName = DOM.getValue(input).trim()
+			if (!newName) {
+				DOM.setStyle(input, 'outline', '1px solid var(--red)')
+				return
+			}
+			onSave(newName, DOM.getValue(textarea).trim())
+		}
+
+		DOM.on(DOM.get('.map-popup__btn-save', wrapper), 'click', save)
+		DOM.on(input, 'keydown', (e) => {
+			if (e.key === 'Enter') save(e)
+		})
+
+		setTimeout(() => input?.focus(), 50)
+		return wrapper
+	},
+
+	// @b Add marker
+	//------------------------
+	addMarker: (id, lat, lon, name, desc) => {
+		const marker = L.marker([lat, lon]).addTo(MapView._instance)
+		marker.bindPopup(MapView.createViewPopup(id, name, desc), { closeButton: false, ...Pure.getPopupPadding() })
+		return marker
+	},
+
+	// @b Remove marker
+	//------------------------
+	removeMarker: (marker) => {
+		if (marker) MapView._instance.removeLayer(marker)
+	},
+
+	// @b Focus marker
+	//------------------------
+	focusMarker: (marker) => {
+		const padding = Pure.getMapPadding()
+
+		MapView._instance.panInside(marker.getLatLng(), {
+			paddingTopLeft: padding.topLeft,
+			paddingBottomRight: padding.bottomRight,
+		})
+
+		marker.openPopup()
+	},
+
+	// @b Enable/disable adding
+	//------------------------
+	disableAdding: () => {
+		MapView._instance.off('click', Handlers.mapClick)
+	},
+
+	enableAdding: () => {
+		MapView._instance.on('click', Handlers.mapClick)
+	},
+
+	// @b Open add popup
+	//------------------------
+	openAddPopup: (lat, lon, onSave) => {
+		Log.enter()
+		MapView.disableAdding()
+
+		const marker = L.marker([lat, lon]).addTo(MapView._instance)
+		marker._saved = false
+
+		const cleanup = () => {
+			STATE.activeCancel = null
+			MapView.enableAdding()
+			if (MapView._instance.hasLayer(marker)) {
+				MapView._instance.removeLayer(marker)
+			}
+		}
+
+		const save = (name, desc) => {
+			marker._saved = true
+			STATE.activeCancel = null
+			MapView.enableAdding()
+			onSave(marker, name, desc)
+		}
+
+		const content = MapView.createFormPopup('', '', save, cleanup)
+
+		marker.bindPopup(content, { closeButton: false, closeOnClick: false, ...Pure.getPopupPadding() }).openPopup()
+		STATE.activeCancel = cleanup
+
+		marker.on('popupclose', () => {
+			if (!marker._saved) {
+				setTimeout(() => {
+					cleanup()
+				}, 0)
+			}
+		})
+		Log.exit()
+	},
+
+	// @b Open edit popup
+	//------------------------
+	openEditPopup: (marker, id, name, desc, onSave) => {
+		Log.enter()
+		MapView.disableAdding()
+		const originalLatLng = marker.getLatLng()
+		let currentLatLng = marker.getLatLng()
+
+		marker.closePopup()
+		marker.unbindPopup()
+
+		marker.dragging.enable()
+
+		const finishEditing = () => {
+			marker.off('dragstart', handleDragStart)
+			marker.off('dragend', handleDragEnd)
+			marker.dragging.disable()
+			MapView.enableAdding()
+			STATE.activeCancel = null
+		}
+
+		const revertToView = () => {
+			finishEditing()
+			marker.setLatLng(originalLatLng)
+			marker.unbindPopup()
+			marker
+				.bindPopup(MapView.createViewPopup(id, name, desc), {
+					closeButton: false,
+					closeOnClick: true,
+					...Pure.getPopupPadding(),
+				})
+				.openPopup()
+		}
+
+		const save = (newName, newDesc) => {
+			finishEditing()
+			onSave(newName, newDesc, currentLatLng.lat, currentLatLng.lng) // Logic.editWaypoint sets the view popup
+		}
+
+		const content = MapView.createFormPopup(name, desc, save, revertToView)
+
+		marker.bindPopup(content, { closeButton: false, closeOnClick: false, ...Pure.getPopupPadding() }).openPopup()
+		STATE.activeCancel = revertToView
+
+		const handleDragStart = () => {
+			marker.closePopup()
+		}
+
+		const handleDragEnd = () => {
+			currentLatLng = marker.getLatLng()
+			marker.openPopup()
+		}
+
+		marker.on('dragstart', handleDragStart)
+		marker.on('dragend', handleDragEnd)
+
+		Log.exit()
 	},
 }
 
 // @g Panel
 //------------------------
 const Panel = {
-	// @b Render list
+	// @b Render tracks list
 	//------------------------
-	render: () => {
-		DOM.clear($.panel.list)
-
-		// if (STATE.tracks.length === 0) {
-		// 	DOM.create({
-		// 		type: 'li',
-		// 		classes: ['panel__empty'],
-		// 		children: 'Kliknij „Wczytaj”, aby dodać pliki GPX.',
-		// 		parent: $.panel.list,
-		// 	})
-		// }
+	renderTracks: () => {
+		DOM.clear($.panel.routesList)
 
 		STATE.tracks.forEach((track) => {
 			const item = DOM.create({
 				type: 'li',
 				classes: ['panel__item'],
-				parent: $.panel.list,
+				parent: $.panel.routesList,
 				dataset: { id: track.id },
 			})
 
-			// Top row: color, name + length, delete
 			const top = DOM.create({ type: 'div', classes: ['panel__item-top'], parent: item })
 
-			DOM.create({
-				type: 'input',
+			const colorButton = DOM.create({
+				type: 'button',
 				classes: ['panel__item-color'],
 				parent: top,
 				title: 'Kolor trasy',
-				listeners: { input: (e) => Handlers.colorInput(track.id, e) },
+				listeners: { click: (e) => Handlers.colorClick(track.id, e.currentTarget) },
+			})
+			colorButton.style.backgroundColor = track.color
+
+			const weightButton = DOM.create({
+				type: 'button',
+				classes: ['panel__item-weight-btn'],
+				parent: top,
+				title: 'Szerokość trasy',
+				children: `${track.weight}px`,
+				listeners: { click: (e) => Handlers.weightClick(track.id, e.currentTarget) },
 			})
 
 			const main = DOM.create({
@@ -760,61 +959,266 @@ const Panel = {
 				title: 'Usuń trasę',
 				listeners: { click: () => Handlers.deleteTrackClick(track.id) },
 			})
-
-			// Bottom row: width slider
-			const bottom = DOM.create({ type: 'div', classes: ['panel__item-width'], parent: item })
-
-			const label = DOM.create({
-				type: 'span',
-				classes: ['panel__item-weight'],
-				children: `${track.weight} px`,
-				parent: bottom,
-			})
-			const range = DOM.create({
-				type: 'input',
-				classes: ['panel__item-range'],
-				parent: bottom,
-				title: 'Grubość linii',
-			})
-
-			// Input attributes set directly (DOM.create uses `type` for the tag name)
-			const colorInput = DOM.get('.panel__item-color', top)
-			colorInput.type = 'color'
-			colorInput.value = track.color
-
-			range.type = 'range'
-			range.min = CONFIG.track.minWeight
-			range.max = CONFIG.track.maxWeight
-			range.step = 1
-			range.value = track.weight
-			DOM.on(range, 'input', (e) => Handlers.weightInput(track.id, e, label))
 		})
 
-		DOM.setText($.panel.count, STATE.tracks.length)
+		DOM.setText($.panel.routesCount, STATE.tracks.length)
+	},
+
+	// @b Render points list
+	//------------------------
+	renderPoints: () => {
+		DOM.clear($.panel.pointsList)
+
+		STATE.waypoints.forEach((wp) => {
+			const item = DOM.create({
+				type: 'li',
+				classes: ['panel__point'],
+				parent: $.panel.pointsList,
+				draggable: 'true',
+				dataset: { id: wp.id },
+			})
+
+			const mainContainer = DOM.create({ type: 'div', classes: ['panel__point-main'], parent: item })
+
+			DOM.on(mainContainer, 'click', () => Handlers.selectWaypointClick(wp.id))
+
+			DOM.create({
+				type: 'span',
+				classes: ['panel__point-handle'],
+				children: '⠿',
+				parent: mainContainer,
+			})
+
+			DOM.create({
+				type: 'span',
+				classes: ['panel__point-name'],
+				children: wp.name,
+				parent: mainContainer,
+				title: wp.desc || wp.name,
+			})
+
+			const actionsContainer = DOM.create({ type: 'div', classes: ['panel__point-actions'], parent: item })
+
+			DOM.create({
+				type: 'button',
+				classes: ['panel__point-edit'],
+				children: '✎',
+				parent: actionsContainer,
+				title: 'Edytuj punkt',
+				listeners: { click: () => Handlers.editWaypointClick(wp.id) },
+			})
+
+			DOM.create({
+				type: 'button',
+				classes: ['panel__point-delete'],
+				children: '×',
+				parent: actionsContainer,
+				title: 'Usuń punkt',
+				listeners: { click: () => Handlers.deleteWaypointClick(wp.id) },
+			})
+		})
+
+		DOM.setText($.panel.pointsCount, STATE.waypoints.length)
 	},
 
 	// @b Sync per-track controls
 	//------------------------
 	syncControls: () => {
+		$.panel.globalColor.style.backgroundColor = STATE.globalColor
+		DOM.setText($.panel.globalWeightBtn, `${STATE.globalWeight}px`)
 		STATE.tracks.forEach((track) => {
-			const item = DOM.get(`.panel__item[data-id="${track.id}"]`, $.panel.list)
+			const item = DOM.get(`.panel__item[data-id="${track.id}"]`, $.panel.routesList)
 			if (!item) return
-			DOM.get('.panel__item-color', item).value = track.color
-			DOM.get('.panel__item-range', item).value = track.weight
-			DOM.setText(DOM.get('.panel__item-weight', item), `${track.weight} px`)
+			DOM.get('.panel__item-color', item).style.backgroundColor = track.color
+			const weightBtn = DOM.get('.panel__item-weight-btn', item)
+			if (weightBtn) DOM.setText(weightBtn, `${track.weight}px`)
 		})
 	},
 
 	// @b Init global controls
 	//------------------------
 	initGlobalControls: () => {
-		$.panel.globalColor.value = STATE.globalColor
-		$.panel.globalRange.min = CONFIG.track.minWeight
-		$.panel.globalRange.max = CONFIG.track.maxWeight
-		$.panel.globalRange.value = STATE.globalWeight
-		DOM.setText($.panel.globalWeight, `${STATE.globalWeight} px`)
+		$.panel.globalColor.style.backgroundColor = STATE.globalColor
+		DOM.setText($.panel.globalWeightBtn, `${STATE.globalWeight}px`)
 	},
 }
+
+// @g ColorPicker
+//------------------------
+// Small popup with a fixed palette
+const ColorPicker = {
+	_element: null,
+	_anchor: null,
+	_onSelect: null,
+
+	init: () => {
+		Log.enter('ColorPicker')
+		ColorPicker._element = DOM.create({ type: 'div', classes: ['color-picker'], parent: document.body })
+
+		CONFIG.defaults.trackColors.forEach((color) => {
+			const swatch = DOM.create({
+				type: 'button',
+				classes: ['color-picker__swatch'],
+				parent: ColorPicker._element,
+				title: color,
+				dataset: { color },
+			})
+			swatch.style.backgroundColor = color
+		})
+
+		DOM.on(ColorPicker._element, 'click', ColorPicker._swatchClick)
+		// Close on outside click, Escape, window resize and any scroll (e.g. the track list)
+		DOM.on(document, 'mousedown', ColorPicker._outsideMouseDown)
+		DOM.on(document, 'keydown', (e) => e.key === 'Escape' && ColorPicker.close())
+		DOM.on(document, 'scroll', ColorPicker.close, true)
+		DOM.on(window, 'resize', ColorPicker.close)
+		Log.exit()
+	},
+
+	isOpen: () => ColorPicker._element.classList.contains('color-picker--active'),
+
+	open: (anchor, currentColor, onSelect) => {
+		// Second click on the same anchor closes the picker
+		if (ColorPicker.isOpen() && ColorPicker._anchor === anchor) {
+			ColorPicker.close()
+			return
+		}
+
+		ColorPicker._anchor = anchor
+		ColorPicker._onSelect = onSelect
+
+		// Mark the current color
+		DOM.getAll('.color-picker__swatch', ColorPicker._element).forEach((swatch) => {
+			swatch.classList.toggle('color-picker__swatch--selected', swatch.dataset.color.toLowerCase() === currentColor.toLowerCase())
+		})
+
+		DOM.addClass(ColorPicker._element, 'color-picker--active')
+
+		// Position under the anchor, kept inside the viewport
+		const margin = 8
+		const rect = anchor.getBoundingClientRect()
+		const width = ColorPicker._element.offsetWidth
+		const height = ColorPicker._element.offsetHeight
+
+		let left = Math.min(rect.left, window.innerWidth - width - margin)
+		let top = rect.bottom + 6
+		if (top + height > window.innerHeight - margin) top = rect.top - height - 6
+
+		ColorPicker._element.style.left = `${Math.max(margin, left)}px`
+		ColorPicker._element.style.top = `${Math.max(margin, top)}px`
+	},
+
+	close: () => {
+		if (!ColorPicker._element || !ColorPicker.isOpen()) return
+		DOM.removeClass(ColorPicker._element, 'color-picker--active')
+		ColorPicker._anchor = null
+		ColorPicker._onSelect = null
+	},
+
+	_swatchClick: (e) => {
+		const swatch = e.target.closest('.color-picker__swatch')
+		if (!swatch) return
+
+		const onSelect = ColorPicker._onSelect
+		ColorPicker.close()
+		if (onSelect) onSelect(swatch.dataset.color)
+	},
+
+	_outsideMouseDown: (e) => {
+		if (!ColorPicker.isOpen()) return
+		if (ColorPicker._element.contains(e.target) || ColorPicker._anchor?.contains(e.target)) return
+		ColorPicker.close()
+	},
+}
+
+// @g WidthPicker
+//------------------------
+const WidthPicker = {
+	_element: null,
+	_rangeInput: null,
+	_labelSpan: null,
+	_anchor: null,
+	_onChange: null,
+
+	init: () => {
+		Log.enter('WidthPicker')
+		WidthPicker._element = DOM.create({ type: 'div', classes: ['width-picker'], parent: document.body })
+
+		WidthPicker._rangeInput = DOM.create({
+			type: 'input',
+			classes: ['width-picker__range'],
+			parent: WidthPicker._element,
+		})
+		WidthPicker._rangeInput.type = 'range'
+		WidthPicker._rangeInput.min = CONFIG.track.minWeight
+		WidthPicker._rangeInput.max = CONFIG.track.maxWeight
+		WidthPicker._rangeInput.step = 1
+
+		WidthPicker._labelSpan = DOM.create({
+			type: 'span',
+			classes: ['width-picker__label'],
+			parent: WidthPicker._element,
+		})
+
+		DOM.on(WidthPicker._rangeInput, 'input', WidthPicker._onInput)
+		DOM.on(document, 'mousedown', WidthPicker._outsideMouseDown)
+		DOM.on(document, 'keydown', (e) => e.key === 'Escape' && WidthPicker.close())
+		DOM.on(document, 'scroll', WidthPicker.close, true)
+		DOM.on(window, 'resize', WidthPicker.close)
+		Log.exit()
+	},
+
+	isOpen: () => WidthPicker._element.classList.contains('width-picker--active'),
+
+	open: (anchor, currentWeight, onChange) => {
+		if (WidthPicker.isOpen() && WidthPicker._anchor === anchor) {
+			WidthPicker.close()
+			return
+		}
+
+		ColorPicker.close()
+
+		WidthPicker._anchor = anchor
+		WidthPicker._onChange = onChange
+
+		WidthPicker._rangeInput.value = currentWeight
+		DOM.setText(WidthPicker._labelSpan, `${currentWeight} px`)
+
+		DOM.addClass(WidthPicker._element, 'width-picker--active')
+
+		const margin = 8
+		const rect = anchor.getBoundingClientRect()
+		const width = WidthPicker._element.offsetWidth
+		const height = WidthPicker._element.offsetHeight
+
+		let left = Math.min(rect.left, window.innerWidth - width - margin)
+		let top = rect.bottom + 6
+		if (top + height > window.innerHeight - margin) top = rect.top - height - 6
+
+		WidthPicker._element.style.left = `${Math.max(margin, left)}px`
+		WidthPicker._element.style.top = `${Math.max(margin, top)}px`
+	},
+
+	close: () => {
+		if (!WidthPicker._element || !WidthPicker.isOpen()) return
+		DOM.removeClass(WidthPicker._element, 'width-picker--active')
+		WidthPicker._anchor = null
+		WidthPicker._onChange = null
+	},
+
+	_onInput: (e) => {
+		const val = Number(e.target.value)
+		DOM.setText(WidthPicker._labelSpan, `${val} px`)
+		if (WidthPicker._onChange) WidthPicker._onChange(val)
+	},
+
+	_outsideMouseDown: (e) => {
+		if (!WidthPicker.isOpen()) return
+		if (WidthPicker._element.contains(e.target) || WidthPicker._anchor?.contains(e.target)) return
+		WidthPicker.close()
+	},
+}
+
 // #endregion
 //========================
 //#region @r CONFIG
@@ -824,6 +1228,7 @@ const CONFIG = {
 		zoom: 6,
 		center: [52.0, 19.0],
 		maxZoom: 19,
+		fitMaxZoom: 16,
 		zoomSnap: 0.5,
 		zoomDelta: 0.5,
 		wheelPxPerZoomLevel: 120,
@@ -859,6 +1264,10 @@ const CONFIG = {
 		headerHeight: 48,
 		footerHeight: 36,
 	},
+	gpx: {
+		creator: 'GPX Studio',
+		coordPrecision: 7,
+	},
 	track: {
 		opacity: 0.9,
 		defaultWeight: 5,
@@ -871,12 +1280,34 @@ const CONFIG = {
 		minMapWidth: 0,
 	},
 	storage: {
-		settings: 'GPR_settings',
+		settings: 'GPX_settings',
+		waypoints: 'GPX_waypoints',
 	},
 	defaults: {
-		trackColor: '#404040',
-		waterColor: '#446688',
+		trackColor: '#444444',
+		trackColors: [
+			// gray
+			'#000000',
+			'#222222',
+			'#444444',
+			'#888888',
+			'#ffffff',
+			// blue
+			'#002244',
+			'#224466',
+			'#336699',
+			'#4488cc',
+			'#66bbff',
+			// brown
+			'#442200',
+			'#664422',
+			'#996633',
+			'#cc8844',
+			'#ffbb66',
+		],
 		basemap: 'osm',
+		listName: 'Punkty',
+		activeTab: 'routes',
 		panelCollapsed: false,
 		panelWidth: 300,
 	},
@@ -888,7 +1319,15 @@ const CONFIG = {
 //========================
 const STATE = {
 	tracks: [],
-	nextId: 1,
+	nextTrackId: 1,
+	waypoints: [],
+	nextPointId: 1,
+	activeTab: CONFIG.defaults.activeTab,
+	addMode: false,
+	listName: CONFIG.defaults.listName,
+	activeCancel: null,
+	draggedId: null,
+	popupOpen: false,
 	panelCollapsed: CONFIG.defaults.panelCollapsed,
 	panelWidth: CONFIG.defaults.panelWidth,
 	mapView: null,
@@ -914,16 +1353,24 @@ const $ = {
 	},
 	panel: {
 		element: DOM.getById('panel'),
-		list: DOM.getById('panel-list'),
-		count: DOM.getById('panel-count'),
+		tabs: DOM.getById('panel-tabs'),
+		sectionRoutes: DOM.getById('section-routes'),
+		sectionPoints: DOM.getById('section-points'),
+		routesList: DOM.getById('panel-routes-list'),
+		routesCount: DOM.getById('routes-count'),
+		pointsList: DOM.getById('panel-points-list'),
+		pointsCount: DOM.getById('points-count'),
+		fileName: DOM.getById('panel-file-name'),
+		addModeButton: DOM.getById('panel-add-mode'),
+		sortButton: DOM.getById('panel-sort'),
+		saveButton: DOM.getById('panel-save'),
 		toggleButton: DOM.getById('panel-toggle'),
 		importButton: DOM.get('#panel-import-btn'),
 		importInput: DOM.get('#panel-import-input'),
 		clearButton: DOM.getById('panel-clear'),
 		basemap: DOM.getById('panel-basemap'),
 		globalColor: DOM.getById('panel-global-color'),
-		globalRange: DOM.getById('panel-global-range'),
-		globalWeight: DOM.getById('panel-global-weight'),
+		globalWeightBtn: DOM.getById('panel-global-weight-btn'),
 		resizer: DOM.getById('panel-resizer'),
 	},
 	footer: {
@@ -937,7 +1384,8 @@ const $ = {
 const Pure = {
 	// @b Parse GPX
 	//------------------------
-	// Returns an array of segments ([[lat, lon], ...]) or null if the file has no drawable track
+	// Returns { segments, waypoints } or null if the file is not valid XML.
+	// segments: [[[lat, lon], ...], ...] (tracks, or routes as a fallback), waypoints: [{ lat, lon, name, desc }]
 	parseGpx: (text) => {
 		const doc = new DOMParser().parseFromString(text, 'application/xml')
 		if (doc.getElementsByTagName('parsererror').length > 0) return null
@@ -959,7 +1407,17 @@ const Pure = {
 				.filter((seg) => seg.length > 1)
 		}
 
-		return segments.length > 0 ? segments : null
+		// Waypoints
+		const waypoints = Array.from(doc.getElementsByTagName('wpt'))
+			.map((wpt) => ({
+				lat: parseFloat(wpt.getAttribute('lat')),
+				lon: parseFloat(wpt.getAttribute('lon')),
+				name: wpt.getElementsByTagName('name')[0]?.textContent.trim() ?? '',
+				desc: wpt.getElementsByTagName('desc')[0]?.textContent.trim() ?? '',
+			}))
+			.filter((wp) => Number.isFinite(wp.lat) && Number.isFinite(wp.lon))
+
+		return { segments, waypoints }
 	},
 
 	// @b Distance (km)
@@ -990,6 +1448,55 @@ const Pure = {
 	// @b Strip .gpx extension
 	//------------------------
 	stripExtension: (name) => name.replace(/\.gpx$/i, ''),
+
+	// @b Escape XML
+	//------------------------
+	escapeXml: (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'),
+
+	// @b Build GPX xml
+	//------------------------
+	buildGpx: (waypoints) => {
+		Log.enter('buildGpx')
+
+		let gpx = '<?xml version="1.0" encoding="UTF-8"?>\n'
+		gpx += `<gpx version="1.1" creator="${CONFIG.gpx.creator}" xmlns="http://www.topografix.com/GPX/1/1">\n`
+
+		waypoints.forEach((wp) => {
+			gpx += `\t<wpt lat="${wp.lat.toFixed(CONFIG.gpx.coordPrecision)}" lon="${wp.lon.toFixed(CONFIG.gpx.coordPrecision)}">\n`
+			gpx += `\t\t<name>${Pure.escapeXml(wp.name)}</name>\n`
+
+			if (wp.desc) {
+				gpx += `\t\t<desc>${Pure.escapeXml(wp.desc)}</desc>\n`
+			}
+
+			gpx += `\t</wpt>\n`
+		})
+
+		gpx += '</gpx>'
+
+		Log.exit()
+		return gpx
+	},
+
+	// @b Map padding
+	//------------------------
+	getMapPadding: () => {
+		const panelWidth = STATE.panelCollapsed ? 0 : STATE.panelWidth
+		const header = STATE.fullscreen ? 0 : CONFIG.map.headerHeight
+		const footer = STATE.fullscreen ? 0 : CONFIG.map.footerHeight
+		return { topLeft: [20, header + 20], bottomRight: [panelWidth + 20, footer + 20] }
+	},
+
+	// @b Popup autoPan padding
+	//------------------------
+	getPopupPadding: () => {
+		const padding = Pure.getMapPadding()
+		return { autoPanPaddingTopLeft: padding.topLeft, autoPanPaddingBottomRight: padding.bottomRight }
+	},
+
+	// @b Sanitize filename
+	//------------------------
+	sanitizeFilename: (name) => name.replace(/[\\/:*?"<>|]/g, '').trim() || CONFIG.defaults.listName,
 
 	// @b Get max panel width
 	//------------------------
@@ -1028,7 +1535,62 @@ const Effects = {
 			globalColor: STATE.globalColor,
 			globalWeight: STATE.globalWeight,
 			basemap: STATE.basemap,
+			listName: STATE.listName,
+			activeTab: STATE.activeTab,
 		})
+	},
+
+	// @b Save waypoints to storage
+	//------------------------
+	saveWaypoints: () => {
+		const data = STATE.waypoints.map((wp) => ({ id: wp.id, lat: wp.lat, lon: wp.lon, name: wp.name, desc: wp.desc }))
+		Storage.set(CONFIG.storage.waypoints, data)
+	},
+
+	// @b Download waypoints as GPX file
+	//------------------------
+	downloadGpx: (waypoints) => {
+		Log.enter('downloadGpx')
+		const xml = Pure.buildGpx(waypoints)
+		const blob = new Blob([xml], { type: 'application/gpx+xml' })
+		const url = URL.createObjectURL(blob)
+		const filename = `${Pure.sanitizeFilename(STATE.listName)}.gpx`
+
+		const link = DOM.create({
+			type: 'a',
+			href: url,
+			download: filename,
+		})
+		link.click()
+		URL.revokeObjectURL(url)
+		Log.exit()
+	},
+
+	// @b Apply list name
+	//------------------------
+	applyListName: () => {
+		DOM.setText($.panel.fileName, STATE.listName)
+	},
+
+	// @b Apply active tab
+	//------------------------
+	applyTab: () => {
+		const isRoutes = STATE.activeTab === 'routes'
+		$.panel.sectionRoutes.hidden = !isRoutes
+		$.panel.sectionPoints.hidden = isRoutes
+		$.panel.saveButton.hidden = isRoutes
+
+		DOM.getAll('.panel__tab', $.panel.tabs).forEach((tab) => {
+			tab.classList.toggle('panel__tab--active', tab.dataset.tab === STATE.activeTab)
+		})
+	},
+
+	// @b Apply add mode
+	//------------------------
+	applyAddMode: () => {
+		const active = STATE.addMode && STATE.activeTab === 'points'
+		$.main.map.classList.toggle('main__map--adding', active)
+		$.panel.addModeButton.classList.toggle('panel__tool--active', STATE.addMode)
 	},
 
 	// @b Save current map view to storage
@@ -1065,7 +1627,7 @@ const Effects = {
 		DOM.setText($.main.zoom, `Zoom: ${String(zoom).replace('.', ',')}`)
 	},
 
-	// @b Update fullscreen mode (hides header and footer)
+	// @b Update fullscreen mode
 	//------------------------
 	updateFullscreen: () => {
 		const isFullscreen =
@@ -1108,6 +1670,8 @@ const Logic = {
 		STATE.panelCollapsed = settings.panelCollapsed ?? CONFIG.defaults.panelCollapsed
 		STATE.panelWidth = settings.panelWidth ?? CONFIG.defaults.panelWidth
 		STATE.mapView = settings.mapView ?? null
+		STATE.listName = settings.listName ?? CONFIG.defaults.listName
+		if (['routes', 'points'].includes(settings.activeTab)) STATE.activeTab = settings.activeTab
 		if (/^#[0-9a-f]{6}$/i.test(settings.globalColor)) STATE.globalColor = settings.globalColor
 		if (Object.hasOwn(CONFIG.map.basemaps, settings.basemap)) STATE.basemap = settings.basemap
 		const weight = Number(settings.globalWeight)
@@ -1126,7 +1690,7 @@ const Logic = {
 	// @b Add track
 	//------------------------
 	addTrack: (name, segments) => {
-		const id = STATE.nextId++
+		const id = STATE.nextTrackId++
 		const track = {
 			id,
 			name,
@@ -1148,7 +1712,7 @@ const Logic = {
 		if (index === -1) return
 		MapView.removeTrack(STATE.tracks[index].layer)
 		STATE.tracks.splice(index, 1)
-		Panel.render()
+		Panel.renderTracks()
 	},
 
 	// @b Set color
@@ -1158,6 +1722,7 @@ const Logic = {
 		if (!track) return
 		track.color = color
 		MapView.styleTrack(track.layer, track.color, track.weight)
+		Panel.syncControls()
 	},
 
 	// @b Set weight
@@ -1167,6 +1732,7 @@ const Logic = {
 		if (!track) return
 		track.weight = weight
 		MapView.styleTrack(track.layer, track.color, track.weight)
+		Panel.syncControls()
 	},
 
 	// @b Set basemap
@@ -1208,10 +1774,138 @@ const Logic = {
 	clearTracks: () => {
 		STATE.tracks.forEach((track) => MapView.removeTrack(track.layer))
 		STATE.tracks = []
-		Panel.render()
+		Panel.renderTracks()
 	},
 
-	// @b Import GPX files (multiple at once)
+	// @b Set active tab
+	//------------------------
+	setTab: (tab) => {
+		if (!['routes', 'points'].includes(tab) || tab === STATE.activeTab) return
+		STATE.activeTab = tab
+		ColorPicker.close()
+		WidthPicker.close()
+		Effects.applyTab()
+		Effects.applyAddMode()
+		Effects.saveSettings()
+	},
+
+	// @b Set add mode
+	//------------------------
+	setAddMode: (enabled) => {
+		STATE.addMode = enabled
+		Effects.applyAddMode()
+	},
+
+	// @b Add waypoint
+	//------------------------
+	addWaypoint: (lat, lon, name, desc = '', existingMarker = null, silent = false) => {
+		Log.enter(name, desc)
+		const id = STATE.nextPointId++
+		const finalName = name || `Punkt ${id}`
+		const marker = existingMarker || MapView.addMarker(id, lat, lon, finalName, desc)
+
+		if (existingMarker) {
+			marker.setPopupContent(MapView.createViewPopup(id, finalName, desc))
+		}
+
+		const waypoint = { id, lat, lon, name: finalName, desc, marker }
+		STATE.waypoints.push(waypoint)
+
+		if (!silent) {
+			Panel.renderPoints()
+			Effects.saveWaypoints()
+		}
+		Log.exit()
+		return waypoint
+	},
+
+	// @b Edit waypoint
+	//------------------------
+	editWaypoint: (id, newName, newDesc, lat, lon) => {
+		Log.enter(id, newName, newDesc)
+		const waypoint = STATE.waypoints.find((wp) => wp.id === id)
+		if (!waypoint) return
+
+		waypoint.name = newName
+		waypoint.desc = newDesc
+		if (typeof lat === 'number' && typeof lon === 'number') {
+			waypoint.lat = lat
+			waypoint.lon = lon
+		}
+
+		if (waypoint.marker) {
+			waypoint.marker.setPopupContent(MapView.createViewPopup(id, newName, newDesc))
+		}
+
+		Panel.renderPoints()
+		Effects.saveWaypoints()
+		Log.exit()
+	},
+
+	// @b Remove waypoint
+	//------------------------
+	removeWaypoint: (id) => {
+		const waypoint = STATE.waypoints.find((wp) => wp.id === id)
+		if (!waypoint) return
+
+		MapView.removeMarker(waypoint.marker)
+		STATE.waypoints = STATE.waypoints.filter((wp) => wp.id !== id)
+		Effects.saveWaypoints()
+		Panel.renderPoints()
+	},
+
+	// @b Clear all waypoints
+	//------------------------
+	clearWaypoints: () => {
+		STATE.waypoints.forEach((wp) => MapView.removeMarker(wp.marker))
+		STATE.waypoints = []
+		Effects.saveWaypoints()
+		Panel.renderPoints()
+	},
+
+	// @b Load waypoints from storage
+	//------------------------
+	loadWaypoints: () => {
+		Log.enter('loadWaypoints')
+		const saved = Storage.get(CONFIG.storage.waypoints, null) ?? []
+
+		saved.forEach((wp) => {
+			const marker = MapView.addMarker(wp.id, wp.lat, wp.lon, wp.name, wp.desc)
+			STATE.waypoints.push({ ...wp, marker })
+		})
+
+		if (saved.length > 0) {
+			STATE.nextPointId = Math.max(...saved.map((wp) => wp.id)) + 1
+			Effects.saveWaypoints()
+		}
+		Log.exit()
+	},
+
+	// @b Reorder waypoints (drag & drop)
+	//------------------------
+	reorderWaypoints: (draggedId, targetId) => {
+		const fromIndex = STATE.waypoints.findIndex((wp) => wp.id === draggedId)
+		const toIndex = STATE.waypoints.findIndex((wp) => wp.id === targetId)
+		if (fromIndex === -1 || toIndex === -1) return
+
+		const [moved] = STATE.waypoints.splice(fromIndex, 1)
+		STATE.waypoints.splice(toIndex, 0, moved)
+
+		Panel.renderPoints()
+		Effects.saveWaypoints()
+	},
+
+	// @b Sort waypoints alphabetically
+	//------------------------
+	sortWaypointsByName: () => {
+		Log.enter('sortWaypointsByName')
+		STATE.waypoints.sort((a, b) => a.name.localeCompare(b.name, 'pl'))
+		Panel.renderPoints()
+		Effects.saveWaypoints()
+		Log.exit()
+	},
+
+	// @b Import GPX files
 	//------------------------
 	importFiles: async (files) => {
 		Log.enter('importFiles', files.length)
@@ -1219,37 +1913,55 @@ const Logic = {
 		const results = await Promise.all(
 			files.map(async (file) => {
 				try {
-					return { file, segments: Pure.parseGpx(await file.text()) }
+					return { file, data: Pure.parseGpx(await file.text()) }
 				} catch (e) {
 					Log.red('File read error:', file.name, e)
-					return { file, segments: null }
+					return { file, data: null }
 				}
 			}),
 		)
 
-		const added = []
+		const addedTracks = []
+		const addedPoints = []
 		const failed = []
 
-		results.forEach(({ file, segments }) => {
-			if (!segments) {
+		results.forEach(({ file, data }) => {
+			if (!data || (data.segments.length === 0 && data.waypoints.length === 0)) {
 				failed.push(file.name)
 				return
 			}
-			added.push(Logic.addTrack(Pure.stripExtension(file.name), segments))
+			if (data.segments.length > 0) {
+				addedTracks.push(Logic.addTrack(Pure.stripExtension(file.name), data.segments))
+			}
+			data.waypoints.forEach((wp) => {
+				addedPoints.push(Logic.addWaypoint(wp.lat, wp.lon, wp.name, wp.desc, null, true))
+			})
 		})
 
-		Panel.render()
+		Panel.renderTracks()
+		if (addedPoints.length > 0) {
+			Panel.renderPoints()
+			Effects.saveWaypoints()
+		}
 
-		if (added.length > 0) {
+		if (addedTracks.length > 0 || addedPoints.length > 0) {
 			if (STATE.panelCollapsed) {
 				STATE.panelCollapsed = false
 				Effects.updatePanelVisibility()
 			}
-			MapView.fitBounds(added.map((t) => t.layer.getBounds()))
+
+			// Show the tab that received something (stay on the current one if both did)
+			if (addedPoints.length === 0) Logic.setTab('routes')
+			else if (addedTracks.length === 0) Logic.setTab('points')
+
+			MapView.fitBounds([
+				...addedTracks.map((t) => t.layer.getBounds()),
+				...addedPoints.map((wp) => L.latLngBounds([[wp.lat, wp.lon]])),
+			])
 		}
 
 		if (failed.length > 0) {
-			Modal.alert('Nie udało się wczytać', `Brak trasy w pliku lub plik uszkodzony:\n${failed.join('\n')}`)
+			Modal.alert('Nie udało się wczytać', `Brak tras i punktów w pliku lub plik uszkodzony:\n${failed.join('\n')}`)
 		}
 
 		Log.exit()
@@ -1281,16 +1993,190 @@ const Handlers = {
 	// @b Clear all click
 	//------------------------
 	clearAllClick: () => {
-		if (STATE.tracks.length === 0) return
-		Modal.confirm('Wyczyścić wszystko?', 'Czy na pewno chcesz usunąć wszystkie trasy?', Logic.clearTracks)
+		if (STATE.activeTab === 'routes') {
+			if (STATE.tracks.length === 0) return
+			Modal.confirm('Wyczyścić wszystko?', 'Czy na pewno chcesz usunąć wszystkie trasy?', Logic.clearTracks)
+		} else {
+			if (STATE.waypoints.length === 0) return
+			Modal.confirm('Wyczyścić wszystko?', 'Czy na pewno chcesz usunąć wszystkie punkty?', Logic.clearWaypoints)
+		}
+	},
+
+	// @g Tabs
+	//------------------------
+	// @b Tab click
+	//------------------------
+	tabClick: (e) => {
+		const tab = e.target.closest('.panel__tab')
+		if (tab) Logic.setTab(tab.dataset.tab)
+	},
+
+	// @g Map & Waypoints
+	//------------------------
+	// @b Map click
+	//------------------------
+	mapClick: (e) => {
+		if (STATE.popupOpen) {
+			MapView._instance.closePopup()
+			return
+		}
+		if (!STATE.addMode || STATE.activeTab !== 'points') return
+
+		Log.enter('mapClick', e.latlng)
+		const { lat, lng } = e.latlng
+		MapView.openAddPopup(lat, lng, (marker, name, desc) => Logic.addWaypoint(lat, lng, name, desc, marker))
+		Log.exit()
+	},
+
+	// @b Add mode click
+	//------------------------
+	addModeClick: () => {
+		Logic.setAddMode(!STATE.addMode)
+	},
+
+	// @b Edit waypoint click
+	//------------------------
+	editWaypointClick: (id) => {
+		const waypoint = STATE.waypoints.find((wp) => wp.id === id)
+		if (!waypoint) return
+
+		MapView.openEditPopup(waypoint.marker, id, waypoint.name, waypoint.desc, (newName, newDesc, lat, lon) => {
+			Logic.editWaypoint(id, newName, newDesc, lat, lon)
+		})
+	},
+
+	// @b Delete waypoint click
+	//------------------------
+	deleteWaypointClick: (id) => {
+		Logic.removeWaypoint(id)
+	},
+
+	// @b Select waypoint click
+	//------------------------
+	selectWaypointClick: (id) => {
+		const waypoint = STATE.waypoints.find((wp) => wp.id === id)
+		if (!waypoint || !waypoint.marker) return
+		MapView.focusMarker(waypoint.marker)
+	},
+
+	// @b Sort click
+	//------------------------
+	sortClick: () => {
+		if (STATE.waypoints.length < 2) return
+		Logic.sortWaypointsByName()
+	},
+
+	// @b Save GPX click
+	//------------------------
+	saveGpxClick: () => {
+		if (STATE.waypoints.length === 0) {
+			Modal.alert('Brak punktów', 'Włącz tryb dodawania i kliknij na mapie, aby dodać przynajmniej jeden punkt.')
+			return
+		}
+		Effects.downloadGpx(STATE.waypoints)
+	},
+
+	// @g Points list drag & drop
+	//------------------------
+	// @b Drag start
+	//------------------------
+	pointDragStart: (e) => {
+		const item = e.target.closest('.panel__point')
+		if (!item) return
+		STATE.draggedId = Number(item.dataset.id)
+		DOM.addClass(item, 'panel__point--dragging')
+		e.dataTransfer.effectAllowed = 'move'
+		e.dataTransfer.setData('text/plain', String(STATE.draggedId))
+	},
+
+	// @b Drag over
+	//------------------------
+	pointDragOver: (e) => {
+		e.preventDefault()
+		const item = e.target.closest('.panel__point')
+		if (!item || Number(item.dataset.id) === STATE.draggedId) return
+
+		DOM.getAll('.panel__point--over', $.panel.pointsList).forEach((el) => DOM.removeClass(el, 'panel__point--over'))
+		DOM.addClass(item, 'panel__point--over')
+	},
+
+	// @b Drop (reorder)
+	//------------------------
+	pointDrop: (e) => {
+		e.preventDefault()
+		const item = e.target.closest('.panel__point')
+		DOM.getAll('.panel__point--over', $.panel.pointsList).forEach((el) => DOM.removeClass(el, 'panel__point--over'))
+		if (!item) return
+
+		const targetId = Number(item.dataset.id)
+		if (targetId !== STATE.draggedId) {
+			Logic.reorderWaypoints(STATE.draggedId, targetId)
+		}
+	},
+
+	// @b Drag end
+	//------------------------
+	pointDragEnd: () => {
+		DOM.getAll('.panel__point--dragging', $.panel.pointsList).forEach((el) => DOM.removeClass(el, 'panel__point--dragging'))
+		DOM.getAll('.panel__point--over', $.panel.pointsList).forEach((el) => DOM.removeClass(el, 'panel__point--over'))
+		STATE.draggedId = null
+	},
+
+	// @g List name
+	//------------------------
+	// @b Name blur
+	//------------------------
+	fileNameBlur: (e) => {
+		const newName = DOM.getText(e.target).trim() || CONFIG.defaults.listName
+		STATE.listName = newName
+		Effects.applyListName()
+		Effects.saveSettings()
+	},
+
+	// @b Name keydown
+	//------------------------
+	fileNameKeydown: (e) => {
+		if (e.key === 'Enter') {
+			e.preventDefault()
+			e.target.blur()
+		} else if (e.key === 'Escape') {
+			e.preventDefault()
+			e.stopPropagation()
+			DOM.setText(e.target, STATE.listName)
+			e.target.blur()
+		}
+	},
+
+	// @g Global Keyboard
+	//------------------------
+	// @b Escape key
+	//------------------------
+	escapeKeydown: (e) => {
+		if (e.key !== 'Escape' || Modal.isOpen()) return
+
+		if (STATE.activeCancel) {
+			const cancel = STATE.activeCancel
+			STATE.activeCancel = null
+			cancel()
+		} else if (STATE.popupOpen) {
+			MapView._instance.closePopup()
+		} else if (STATE.addMode) {
+			Logic.setAddMode(false)
+		}
 	},
 
 	// @g Global style
 	//------------------------
-	// @b Global color input
+	// @b Global color click
 	//------------------------
-	globalColorInput: (e) => {
-		Logic.setAllColor(e.target.value)
+	globalColorClick: (e) => {
+		ColorPicker.open(e.currentTarget, STATE.globalColor, Logic.setAllColor)
+	},
+
+	// @b Global weight click
+	//------------------------
+	globalWeightClick: (e) => {
+		WidthPicker.open(e.currentTarget, STATE.globalWeight, Logic.setAllWeight)
 	},
 
 	// @b Global weight input
@@ -1307,7 +2193,7 @@ const Handlers = {
 		Logic.setBasemap(e.target.value)
 	},
 
-	// @b Import drag over (drop files on the button)
+	// @b Import drag over
 	//------------------------
 	importDragOver: (e) => {
 		e.preventDefault()
@@ -1338,7 +2224,7 @@ const Handlers = {
 		Logic.importFiles(files)
 	},
 
-	// @b Prevent the browser from opening files dropped outside the button
+	// @b Prevent the browser
 	//------------------------
 	preventFileDrop: (e) => {
 		if (e.dataTransfer?.types?.includes('Files')) e.preventDefault()
@@ -1359,10 +2245,18 @@ const Handlers = {
 		Logic.removeTrack(id)
 	},
 
-	// @b Color input
+	// @b Track color click
 	//------------------------
-	colorInput: (id, e) => {
-		Logic.setColor(id, e.target.value)
+	colorClick: (id, anchor) => {
+		const track = STATE.tracks.find((t) => t.id === id)
+		if (track) ColorPicker.open(anchor, track.color, (color) => Logic.setColor(id, color))
+	},
+
+	// @b Track weight click
+	//------------------------
+	weightClick: (id, anchor) => {
+		const track = STATE.tracks.find((t) => t.id === id)
+		if (track) WidthPicker.open(anchor, track.weight, (weight) => Logic.setWeight(id, weight))
 	},
 
 	// @b Weight input
@@ -1459,6 +2353,16 @@ const Listeners = {
 	init: () => {
 		Log.enter('Listeners')
 		DOM.on($.panel.toggleButton, 'click', Handlers.togglePanelClick)
+		DOM.on($.panel.tabs, 'click', Handlers.tabClick)
+		DOM.on($.panel.addModeButton, 'click', Handlers.addModeClick)
+		DOM.on($.panel.sortButton, 'click', Handlers.sortClick)
+		DOM.on($.panel.saveButton, 'click', Handlers.saveGpxClick)
+		DOM.on($.panel.fileName, 'blur', Handlers.fileNameBlur)
+		DOM.on($.panel.fileName, 'keydown', Handlers.fileNameKeydown)
+		DOM.on($.panel.pointsList, 'dragstart', Handlers.pointDragStart)
+		DOM.on($.panel.pointsList, 'dragover', Handlers.pointDragOver)
+		DOM.on($.panel.pointsList, 'drop', Handlers.pointDrop)
+		DOM.on($.panel.pointsList, 'dragend', Handlers.pointDragEnd)
 		DOM.on($.panel.importButton, 'click', Handlers.importGpxClick)
 		DOM.on($.panel.importInput, 'change', Handlers.importFilesChanged)
 		DOM.on($.panel.importButton, 'dragover', Handlers.importDragOver)
@@ -1468,8 +2372,8 @@ const Listeners = {
 		DOM.on(document, 'drop', Handlers.preventFileDrop)
 		DOM.on($.panel.clearButton, 'click', Handlers.clearAllClick)
 		DOM.on($.panel.basemap, 'change', Handlers.basemapChange)
-		DOM.on($.panel.globalColor, 'input', Handlers.globalColorInput)
-		DOM.on($.panel.globalRange, 'input', Handlers.globalWeightInput)
+		DOM.on($.panel.globalColor, 'click', Handlers.globalColorClick)
+		DOM.on($.panel.globalWeightBtn, 'click', Handlers.globalWeightClick)
 		DOM.on($.panel.resizer, 'mousedown', Handlers.resizerMouseDown)
 		// Resize
 		DOM.on(window, 'resize', Tools.debounce(Handlers.windowResize, 150))
@@ -1480,6 +2384,7 @@ const Listeners = {
 		DOM.on(document, 'mousemove', Handlers.resizerMouseMove)
 		DOM.on(document, 'mouseup', Handlers.resizerMouseUp)
 		// Keys
+		DOM.on(document, 'keydown', Handlers.escapeKeydown)
 		DOM.on(document, 'keydown', Handlers.f2Keydown)
 		Log.exit()
 	},
@@ -1495,11 +2400,18 @@ const App = {
 		Log.enter('App')
 		Logic.loadSettings()
 		Modal.init()
+		ColorPicker.init()
+		WidthPicker.init()
 		MapView.init()
+		Logic.loadWaypoints()
 		Logic.clampPanelWidth()
 		Listeners.init()
-		Panel.render()
+		Panel.renderTracks()
+		Panel.renderPoints()
 		Panel.initGlobalControls()
+		Effects.applyListName()
+		Effects.applyTab()
+		Effects.applyAddMode()
 		Effects.updateBasemapSelect()
 		Effects.applyPanelWidth()
 		Effects.updatePanelVisibility()
