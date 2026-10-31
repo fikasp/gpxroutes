@@ -35,11 +35,6 @@
 			<!-- Panel -->
 			<aside id="panel" class="main__panel">
 				<div id="panel-resizer" class="panel__resizer"></div>
-				<!-- Tabs -->
-				<div id="panel-tabs" class="panel__tabs">
-					<button class="panel__tab panel__tab--active" data-tab="routes">Trasy (<span id="routes-count">0</span>)</button>
-					<button class="panel__tab" data-tab="points">Punkty (<span id="points-count">0</span>)</button>
-				</div>
 				<!-- Basemap -->
 				<select id="panel-basemap" class="panel__select" title="Podkład mapy">
 					<option value="osmShade">Mapa cieniowana (OpenStreetMap)</option>
@@ -47,12 +42,21 @@
 					<option value="topo">Mapa turystyczna (OpenTopoMap)</option>
 					<option value="outdoor">Mapa outdoorowa (Freemap)</option>
 				</select>
+				<!-- Tabs -->
+				<div id="panel-tabs" class="panel__tabs">
+					<button class="panel__tab panel__tab--active" data-tab="routes">
+						Trasy (<span id="routes-count">0</span>)
+					</button>
+					<button class="panel__tab" data-tab="points">Punkty (<span id="points-count">0</span>)</button>
+				</div>
 				<!-- Section: routes -->
 				<div id="section-routes" class="panel__section">
 					<div class="panel__global">
 						<div class="panel__global-top">
 							<button id="panel-global-color" class="panel__item-color" title="Kolor wszystkich tras"></button>
-							<button id="panel-global-weight-btn" class="panel__item-weight-btn" title="Szerokość wszystkich tras">5px</button>
+							<button id="panel-global-weight-btn" class="panel__item-weight-btn" title="Szerokość wszystkich tras">
+								5px
+							</button>
 							<span class="panel__global-label">Wszystkie trasy</span>
 						</div>
 					</div>
@@ -61,16 +65,22 @@
 				<!-- Section: points -->
 				<div id="section-points" class="panel__section" hidden>
 					<div class="panel__toolbar">
-						<span
+						<!-- <span
 							id="panel-file-name"
 							class="panel__file-name"
 							contenteditable="true"
 							spellcheck="false"
 							title="Nazwa pliku GPX przy zapisie (kliknij, aby zmienić)"
 							>Punkty</span
+						> -->
+						<button id="panel-sort" class="panel__tool panel__tool--sort" title="Sortuj alfabetycznie">A→Z</button>
+						<button
+							id="panel-add-mode"
+							class="panel__tool panel__tool--add"
+							title="Tryb dodawania: klikaj na mapie, aby dodać punkty (Esc wyłącza)"
 						>
-						<button id="panel-add-mode" class="panel__tool" title="Tryb dodawania: klikaj na mapie, aby dodać punkty (Esc wyłącza)">＋ Dodawanie</button>
-						<button id="panel-sort" class="panel__tool" title="Sortuj alfabetycznie">A→Z</button>
+							＋ Dodawanie
+						</button>
 					</div>
 					<ul id="panel-points-list" class="panel__list"></ul>
 				</div>

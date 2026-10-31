@@ -163,17 +163,16 @@ main {
 .main__zoom {
 	position: absolute;
 	left: 10px;
-	bottom: calc(var(--footer-height) + 10px);
+	bottom: 5px;
 	padding: 6px 10px;
 	font-size: 0.8rem;
-	color: black;
+	color: gray;
 	background: transparent;
-	backdrop-filter: blur(8px);
 	border-radius: 6px;
 	/* box-shadow: var(--shadow); */
 	pointer-events: none;
 	user-select: none;
-	z-index: 500;
+	z-index: 2000;
 }
 /* @b Hillshade layer */
 /*------------------------*/
@@ -344,14 +343,20 @@ main {
 	max-width: var(--panel-max-width, 600px);
 	display: flex;
 	flex-direction: column;
-	background: rgba(10,10,10, 0.85);
+	background: rgba(10, 10, 10, 0.85);
 	backdrop-filter: blur(8px);
-	padding: 15px;
+	padding: 0px 15px;
 	gap: 10px;
 	box-shadow: var(--shadow);
 	transform: translateX(120%);
 	transition: var(--transition);
 	z-index: 400;
+}
+
+@media (display-mode: fullscreen) {
+	.main__panel {
+		padding: 12px 15px;
+	}
 }
 
 .main__panel--expanded {
@@ -391,8 +396,8 @@ main {
 /*------------------------*/
 .panel__tabs {
 	display: flex;
-	gap: 4px;
-	padding: 4px;
+	gap: 6px;
+	/* padding: 4px; */
 	background: rgba(80, 80, 80, 0.3);
 	border-radius: 5px;
 }
@@ -463,13 +468,13 @@ main {
 }
 
 .panel__tool {
-	flex-shrink: 0;
+	flex: 1;
 	background: transparent;
 	color: var(--gray8);
 	border: 1px solid var(--gray4);
 	border-radius: 4px;
 	padding: 4px 8px;
-	font-size: 0.8rem;
+	font-size: 1rem;
 	cursor: pointer;
 	transition: var(--transition);
 }
@@ -818,7 +823,7 @@ main {
 /*========================*/
 /*#region @r PICKERS */
 /*========================*/
- /* @b Color picker
+/* @b Color picker
  /*------------------------*/
 .color-picker {
 	position: fixed;
