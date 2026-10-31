@@ -51,28 +51,12 @@
 				</div>
 				<!-- Section: routes -->
 				<div id="section-routes" class="panel__section">
-					<div class="panel__global">
-						<div class="panel__global-top">
-							<button id="panel-global-color" class="panel__item-color" title="Kolor wszystkich tras"></button>
-							<button id="panel-global-weight-btn" class="panel__item-weight-btn" title="Szerokość wszystkich tras">
-								5px
-							</button>
-							<span class="panel__global-label">Wszystkie trasy</span>
-						</div>
-					</div>
-					<ul id="panel-routes-list" class="panel__list"></ul>
+					<div id="panel-global" class="panel__global"></div>
+					<div id="panel-routes-list" class="panel__list"></div>
 				</div>
 				<!-- Section: points -->
 				<div id="section-points" class="panel__section" hidden>
 					<div class="panel__toolbar">
-						<!-- <span
-							id="panel-file-name"
-							class="panel__file-name"
-							contenteditable="true"
-							spellcheck="false"
-							title="Nazwa pliku GPX przy zapisie (kliknij, aby zmienić)"
-							>Punkty</span
-						> -->
 						<button id="panel-sort" class="panel__tool panel__tool--sort" title="Sortuj alfabetycznie">A→Z</button>
 						<button
 							id="panel-add-mode"
@@ -134,6 +118,29 @@
 		<!------------------------
 		 @g TEMPLATES
 		------------------------->
+		<!-- @b Track item
+		------------------------->
+		<template id="track-item">
+			<div class="panel__item">
+				<button class="panel__item-style" title="Kolor i grubość linii"></button>
+				<div class="panel__item-main">
+					<span class="panel__item-name"></span>
+					<span class="panel__item-meta"></span>
+				</div>
+				<button class="panel__item-delete" title="Usuń trasę">×</button>
+			</div>
+		</template>
+		<!-- @b Style picker
+		------------------------->
+		<template id="style-picker">
+			<div class="style-picker">
+				<div class="style-picker__palette"></div>
+				<div class="style-picker__width">
+					<input type="range" class="style-picker__range" title="Grubość linii" />
+					<span class="style-picker__label"></span>
+				</div>
+			</div>
+		</template>
 		<!-- @b Map popup
 		------------------------->
 		<template id="map-popup">

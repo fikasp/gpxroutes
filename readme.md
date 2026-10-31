@@ -6,8 +6,8 @@ Prosta aplikacja webowa do przeglądania tras z plików GPX oraz tworzenia i edy
 
 * **Dwie zakładki w panelu: Trasy | Punkty** — z licznikami, obie warstwy są widoczne na mapie jednocześnie.
 * **Jeden przycisk „Wczytaj”** (także drag and drop na przycisk) — wiele plików GPX naraz. Trasy trafiają do zakładki „Trasy”, punkty (`wpt`) do zakładki „Punkty”.
-* **Trasy:** lista z nazwą i długością w km, kolor (paleta) i grubość linii osobno dla każdej trasy oraz dla wszystkich naraz. Domyślny kolor i grubość są zapamiętywane.
-* **Punkty:** tryb dodawania (przycisk **＋ Dodawanie**, klik na mapie), edycja nazwy i opisu w popupie, przesuwanie markera, sortowanie A→Z i ręczna kolejność (przeciągnij-upuść), edytowalna nazwa pliku, **Zapisz** do pliku GPX. Punkty są zapamiętywane w `localStorage`.
+* **Trasy:** lista z nazwą i długością w km, kolor (paleta) i grubość linii w jednym okienku, osobno dla każdej trasy oraz dla wszystkich naraz. Domyślny kolor i grubość są zapamiętywane.
+* **Punkty:** tryb dodawania (przycisk **＋ Dodawanie**, klik na mapie), edycja nazwy i opisu w popupie, przesuwanie markera, sortowanie A→Z i ręczna kolejność (przeciągnij-upuść), **Zapisz** do pliku GPX. Punkty są zapamiętywane w `localStorage`.
 * **Lista wyboru podkładu mapy** — OpenStreetMap, OpenStreetMap z cieniowaniem terenu, OpenTopoMap (turystyczna) lub Outdoor od Freemap (szlaki w kolorach oznakowania).
 * **Wskaźnik powiększenia** w lewym dolnym rogu mapy, zoom co 0,5 poziomu.
 * **Tryb pełnoekranowy** (np. F11) ukrywa nagłówek i stopkę.
@@ -33,13 +33,18 @@ Prosta aplikacja webowa do przeglądania tras z plików GPX oraz tworzenia i edy
 
 * **Otwórz `index.html`** w przeglądarce.
 * Kliknij **„Wczytaj”** (albo przeciągnij pliki `.gpx` na ten przycisk), aby wczytać trasy i/lub punkty.
-* W zakładce **Trasy** zmieniaj kolor (kliknij kwadrat i wybierz z palety) i grubość (przycisk z liczbą pikseli).
+* W zakładce **Trasy** zmieniaj kolor i grubość linii (kliknij kwadrat z napisem szerokości — otworzy się okienko z paletą kolorów i suwakiem).
 * W zakładce **Punkty** włącz **＋ Dodawanie** i klikaj na mapie, aby dodać punkty. **Esc** wyłącza tryb dodawania.
-* **„Zapisz”** (zakładka Punkty) pobiera plik GPX z punktami; nazwę pliku zmienisz klikając nazwę nad listą.
+* **„Zapisz”** (zakładka Punkty) pobiera plik GPX z punktami.
 * Lista **„Podkład mapy”** zmienia wygląd mapy.
 * Klawisz **F2** zwija/rozwija panel.
 
 ## ⏱️ Historia wersji
+
+* **v2.1 (2026-10-31):**
+  * Przełączanie podkładu mapy kółkiem myszy nad listą wyboru.
+  * Połączenie wyboru koloru i grubości trasy w jedno okienko (paleta + suwak).
+  * Wspólny szablon elementu listy (`<template>` w HTML).
 
 * **v2.0 (2026-10-31):**
   * Integracja aplikacji z GPX points - zakładki Trasy i Punkty we wspólnym panelu.

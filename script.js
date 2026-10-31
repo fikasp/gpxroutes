@@ -902,63 +902,45 @@ const MapView = {
 // @g Panel
 //------------------------
 const Panel = {
+	// @b Create item
+	//------------------------
+	createItem: (name, color, weight, onStyleClick) => {
+		const item = DOM.getTemplate('track-item').firstElementChild
+		const styleButton = DOM.get('.panel__item-style', item)
+
+		DOM.setText(DOM.get('.panel__item-name', item), name)
+		Panel.paintStyleButton(styleButton, color, weight)
+		DOM.on(styleButton, 'click', (e) => onStyleClick(e.currentTarget))
+
+		return item
+	},
+
+	// @b Paint style button
+	//------------------------
+	paintStyleButton: (button, color, weight) => {
+		button.style.backgroundColor = color
+		button.classList.toggle('panel__item-style--light', Pure.isLightColor(color))
+		DOM.setText(button, `${weight}px`)
+	},
+
 	// @b Render tracks list
 	//------------------------
 	renderTracks: () => {
 		DOM.clear($.panel.routesList)
 
 		STATE.tracks.forEach((track) => {
-			const item = DOM.create({
-				type: 'li',
-				classes: ['panel__item'],
-				parent: $.panel.routesList,
-				dataset: { id: track.id },
-			})
+			const item = Panel.createItem(track.name, track.color, track.weight, (anchor) =>
+				Handlers.styleClick(track.id, anchor),
+			)
+			item.dataset.id = track.id
 
-			const top = DOM.create({ type: 'div', classes: ['panel__item-top'], parent: item })
+			const main = DOM.get('.panel__item-main', item)
+			main.title = track.name
+			DOM.setText(DOM.get('.panel__item-meta', item), `${Pure.formatKm(track.distance)} km`)
+			DOM.on(main, 'click', () => Handlers.selectTrackClick(track.id))
+			DOM.on(DOM.get('.panel__item-delete', item), 'click', () => Handlers.deleteTrackClick(track.id))
 
-			const colorButton = DOM.create({
-				type: 'button',
-				classes: ['panel__item-color'],
-				parent: top,
-				title: 'Kolor trasy',
-				listeners: { click: (e) => Handlers.colorClick(track.id, e.currentTarget) },
-			})
-			colorButton.style.backgroundColor = track.color
-
-			const weightButton = DOM.create({
-				type: 'button',
-				classes: ['panel__item-weight-btn'],
-				parent: top,
-				title: 'Szerokość trasy',
-				children: `${track.weight}px`,
-				listeners: { click: (e) => Handlers.weightClick(track.id, e.currentTarget) },
-			})
-
-			const main = DOM.create({
-				type: 'div',
-				classes: ['panel__item-main'],
-				parent: top,
-				title: track.name,
-				listeners: { click: () => Handlers.selectTrackClick(track.id) },
-			})
-
-			DOM.create({ type: 'span', classes: ['panel__item-name'], children: track.name, parent: main })
-			DOM.create({
-				type: 'span',
-				classes: ['panel__item-meta'],
-				children: `${Pure.formatKm(track.distance)} km`,
-				parent: main,
-			})
-
-			DOM.create({
-				type: 'button',
-				classes: ['panel__item-delete'],
-				children: '×',
-				parent: top,
-				title: 'Usuń trasę',
-				listeners: { click: () => Handlers.deleteTrackClick(track.id) },
-			})
+			$.panel.routesList.appendChild(item)
 		})
 
 		DOM.setText($.panel.routesCount, STATE.tracks.length)
@@ -1021,201 +1003,160 @@ const Panel = {
 		DOM.setText($.panel.pointsCount, STATE.waypoints.length)
 	},
 
-	// @b Sync per-track controls
+	// @b Sync style buttons
 	//------------------------
 	syncControls: () => {
-		$.panel.globalColor.style.backgroundColor = STATE.globalColor
-		DOM.setText($.panel.globalWeightBtn, `${STATE.globalWeight}px`)
+		Panel.paintStyleButton(Panel._globalStyleButton, STATE.globalColor, STATE.globalWeight)
 		STATE.tracks.forEach((track) => {
 			const item = DOM.get(`.panel__item[data-id="${track.id}"]`, $.panel.routesList)
 			if (!item) return
-			DOM.get('.panel__item-color', item).style.backgroundColor = track.color
-			const weightBtn = DOM.get('.panel__item-weight-btn', item)
-			if (weightBtn) DOM.setText(weightBtn, `${track.weight}px`)
+			Panel.paintStyleButton(DOM.get('.panel__item-style', item), track.color, track.weight)
 		})
 	},
 
-	// @b Init global controls
+	// @b Init global item
 	//------------------------
 	initGlobalControls: () => {
-		$.panel.globalColor.style.backgroundColor = STATE.globalColor
-		DOM.setText($.panel.globalWeightBtn, `${STATE.globalWeight}px`)
+		const item = Panel.createItem('Wszystkie trasy', STATE.globalColor, STATE.globalWeight, Handlers.globalStyleClick)
+		item.classList.add('panel__item--global')
+		DOM.get('.panel__item-meta', item).remove()
+		DOM.get('.panel__item-delete', item).remove()
+
+		Panel._globalStyleButton = DOM.get('.panel__item-style', item)
+		$.panel.global.appendChild(item)
 	},
+
+	// @b Private
+	//------------------------
+	_globalStyleButton: null,
 }
 
-// @g ColorPicker
+// @g StylePicker
 //------------------------
-// Small popup with a fixed palette
-const ColorPicker = {
+// One popup for line style: color palette (CONFIG.defaults.trackColors) + width slider
+const StylePicker = {
 	_element: null,
+	_range: null,
+	_label: null,
 	_anchor: null,
-	_onSelect: null,
+	_onColor: null,
+	_onWeight: null,
 
+	// @b Initialize
+	//------------------------
 	init: () => {
-		Log.enter('ColorPicker')
-		ColorPicker._element = DOM.create({ type: 'div', classes: ['color-picker'], parent: document.body })
+		Log.enter('StylePicker')
+		StylePicker._element = DOM.getTemplate('style-picker').firstElementChild
+		document.body.appendChild(StylePicker._element)
 
+		const palette = DOM.get('.style-picker__palette', StylePicker._element)
 		CONFIG.defaults.trackColors.forEach((color) => {
 			const swatch = DOM.create({
 				type: 'button',
-				classes: ['color-picker__swatch'],
-				parent: ColorPicker._element,
+				classes: ['style-picker__swatch'],
+				parent: palette,
 				title: color,
 				dataset: { color },
 			})
 			swatch.style.backgroundColor = color
 		})
 
-		DOM.on(ColorPicker._element, 'click', ColorPicker._swatchClick)
+		StylePicker._range = DOM.get('.style-picker__range', StylePicker._element)
+		StylePicker._range.min = CONFIG.track.minWeight
+		StylePicker._range.max = CONFIG.track.maxWeight
+		StylePicker._range.step = 1
+		StylePicker._label = DOM.get('.style-picker__label', StylePicker._element)
+
+		DOM.on(palette, 'click', StylePicker._swatchClick)
+		DOM.on(StylePicker._range, 'input', StylePicker._rangeInput)
 		// Close on outside click, Escape, window resize and any scroll (e.g. the track list)
-		DOM.on(document, 'mousedown', ColorPicker._outsideMouseDown)
-		DOM.on(document, 'keydown', (e) => e.key === 'Escape' && ColorPicker.close())
-		DOM.on(document, 'scroll', ColorPicker.close, true)
-		DOM.on(window, 'resize', ColorPicker.close)
+		DOM.on(document, 'mousedown', StylePicker._outsideMouseDown)
+		DOM.on(document, 'keydown', (e) => e.key === 'Escape' && StylePicker.close())
+		DOM.on(document, 'scroll', StylePicker.close, true)
+		DOM.on(window, 'resize', StylePicker.close)
 		Log.exit()
 	},
 
-	isOpen: () => ColorPicker._element.classList.contains('color-picker--active'),
+	isOpen: () => StylePicker._element.classList.contains('style-picker--active'),
 
-	open: (anchor, currentColor, onSelect) => {
+	// @b Open next
+	//------------------------
+	open: (anchor, { color, weight }, { onColor, onWeight }) => {
 		// Second click on the same anchor closes the picker
-		if (ColorPicker.isOpen() && ColorPicker._anchor === anchor) {
-			ColorPicker.close()
+		if (StylePicker.isOpen() && StylePicker._anchor === anchor) {
+			StylePicker.close()
 			return
 		}
 
-		ColorPicker._anchor = anchor
-		ColorPicker._onSelect = onSelect
+		StylePicker._anchor = anchor
+		StylePicker._onColor = onColor
+		StylePicker._onWeight = onWeight
 
-		// Mark the current color
-		DOM.getAll('.color-picker__swatch', ColorPicker._element).forEach((swatch) => {
-			swatch.classList.toggle('color-picker__swatch--selected', swatch.dataset.color.toLowerCase() === currentColor.toLowerCase())
-		})
+		StylePicker._markColor(color)
+		StylePicker._range.value = weight
+		DOM.setText(StylePicker._label, `${weight}px`)
 
-		DOM.addClass(ColorPicker._element, 'color-picker--active')
+		DOM.addClass(StylePicker._element, 'style-picker--active')
 
 		// Position under the anchor, kept inside the viewport
 		const margin = 8
 		const rect = anchor.getBoundingClientRect()
-		const width = ColorPicker._element.offsetWidth
-		const height = ColorPicker._element.offsetHeight
+		const width = StylePicker._element.offsetWidth
+		const height = StylePicker._element.offsetHeight
 
-		let left = Math.min(rect.left, window.innerWidth - width - margin)
+		const left = Math.min(rect.left, window.innerWidth - width - margin)
 		let top = rect.bottom + 6
 		if (top + height > window.innerHeight - margin) top = rect.top - height - 6
 
-		ColorPicker._element.style.left = `${Math.max(margin, left)}px`
-		ColorPicker._element.style.top = `${Math.max(margin, top)}px`
+		StylePicker._element.style.left = `${Math.max(margin, left)}px`
+		StylePicker._element.style.top = `${Math.max(margin, top)}px`
 	},
 
+	// @b Close
+	//------------------------
 	close: () => {
-		if (!ColorPicker._element || !ColorPicker.isOpen()) return
-		DOM.removeClass(ColorPicker._element, 'color-picker--active')
-		ColorPicker._anchor = null
-		ColorPicker._onSelect = null
+		if (!StylePicker._element || !StylePicker.isOpen()) return
+		DOM.removeClass(StylePicker._element, 'style-picker--active')
+		StylePicker._anchor = null
+		StylePicker._onColor = null
+		StylePicker._onWeight = null
 	},
 
+	// @b Mark color
+	//------------------------
+	_markColor: (color) => {
+		DOM.getAll('.style-picker__swatch', StylePicker._element).forEach((swatch) => {
+			swatch.classList.toggle(
+				'style-picker__swatch--selected',
+				swatch.dataset.color.toLowerCase() === color.toLowerCase(),
+			)
+		})
+	},
+
+	// @b Swatch click
+	//------------------------
 	_swatchClick: (e) => {
-		const swatch = e.target.closest('.color-picker__swatch')
+		const swatch = e.target.closest('.style-picker__swatch')
 		if (!swatch) return
 
-		const onSelect = ColorPicker._onSelect
-		ColorPicker.close()
-		if (onSelect) onSelect(swatch.dataset.color)
+		StylePicker._markColor(swatch.dataset.color)
+		if (StylePicker._onColor) StylePicker._onColor(swatch.dataset.color)
 	},
 
+	// @b Range input
+	//------------------------
+	_rangeInput: (e) => {
+		const weight = Number(e.target.value)
+		DOM.setText(StylePicker._label, `${weight}px`)
+		if (StylePicker._onWeight) StylePicker._onWeight(weight)
+	},
+
+	// @b Outside mouse down
+	//------------------------
 	_outsideMouseDown: (e) => {
-		if (!ColorPicker.isOpen()) return
-		if (ColorPicker._element.contains(e.target) || ColorPicker._anchor?.contains(e.target)) return
-		ColorPicker.close()
-	},
-}
-
-// @g WidthPicker
-//------------------------
-const WidthPicker = {
-	_element: null,
-	_rangeInput: null,
-	_labelSpan: null,
-	_anchor: null,
-	_onChange: null,
-
-	init: () => {
-		Log.enter('WidthPicker')
-		WidthPicker._element = DOM.create({ type: 'div', classes: ['width-picker'], parent: document.body })
-
-		WidthPicker._rangeInput = DOM.create({
-			type: 'input',
-			classes: ['width-picker__range'],
-			parent: WidthPicker._element,
-		})
-		WidthPicker._rangeInput.type = 'range'
-		WidthPicker._rangeInput.min = CONFIG.track.minWeight
-		WidthPicker._rangeInput.max = CONFIG.track.maxWeight
-		WidthPicker._rangeInput.step = 1
-
-		WidthPicker._labelSpan = DOM.create({
-			type: 'span',
-			classes: ['width-picker__label'],
-			parent: WidthPicker._element,
-		})
-
-		DOM.on(WidthPicker._rangeInput, 'input', WidthPicker._onInput)
-		DOM.on(document, 'mousedown', WidthPicker._outsideMouseDown)
-		DOM.on(document, 'keydown', (e) => e.key === 'Escape' && WidthPicker.close())
-		DOM.on(document, 'scroll', WidthPicker.close, true)
-		DOM.on(window, 'resize', WidthPicker.close)
-		Log.exit()
-	},
-
-	isOpen: () => WidthPicker._element.classList.contains('width-picker--active'),
-
-	open: (anchor, currentWeight, onChange) => {
-		if (WidthPicker.isOpen() && WidthPicker._anchor === anchor) {
-			WidthPicker.close()
-			return
-		}
-
-		ColorPicker.close()
-
-		WidthPicker._anchor = anchor
-		WidthPicker._onChange = onChange
-
-		WidthPicker._rangeInput.value = currentWeight
-		DOM.setText(WidthPicker._labelSpan, `${currentWeight} px`)
-
-		DOM.addClass(WidthPicker._element, 'width-picker--active')
-
-		const margin = 8
-		const rect = anchor.getBoundingClientRect()
-		const width = WidthPicker._element.offsetWidth
-		const height = WidthPicker._element.offsetHeight
-
-		let left = Math.min(rect.left, window.innerWidth - width - margin)
-		let top = rect.bottom + 6
-		if (top + height > window.innerHeight - margin) top = rect.top - height - 6
-
-		WidthPicker._element.style.left = `${Math.max(margin, left)}px`
-		WidthPicker._element.style.top = `${Math.max(margin, top)}px`
-	},
-
-	close: () => {
-		if (!WidthPicker._element || !WidthPicker.isOpen()) return
-		DOM.removeClass(WidthPicker._element, 'width-picker--active')
-		WidthPicker._anchor = null
-		WidthPicker._onChange = null
-	},
-
-	_onInput: (e) => {
-		const val = Number(e.target.value)
-		DOM.setText(WidthPicker._labelSpan, `${val} px`)
-		if (WidthPicker._onChange) WidthPicker._onChange(val)
-	},
-
-	_outsideMouseDown: (e) => {
-		if (!WidthPicker.isOpen()) return
-		if (WidthPicker._element.contains(e.target) || WidthPicker._anchor?.contains(e.target)) return
-		WidthPicker.close()
+		if (!StylePicker.isOpen()) return
+		if (StylePicker._element.contains(e.target) || StylePicker._anchor?.contains(e.target)) return
+		StylePicker.close()
 	},
 }
 
@@ -1229,6 +1170,7 @@ const CONFIG = {
 		center: [52.0, 19.0],
 		maxZoom: 19,
 		fitMaxZoom: 16,
+		basemapWheelDelay: 200,
 		zoomSnap: 0.5,
 		zoomDelta: 0.5,
 		wheelPxPerZoomLevel: 120,
@@ -1256,8 +1198,7 @@ const CONFIG = {
 			},
 			topo: {
 				url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-				attribution:
-					'Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap (CC-BY-SA)',
+				attribution: 'Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap (CC-BY-SA)',
 				maxNativeZoom: 17,
 			},
 		},
@@ -1266,6 +1207,7 @@ const CONFIG = {
 	},
 	gpx: {
 		creator: 'GPX Studio',
+		fileName: 'Punkty',
 		coordPrecision: 7,
 	},
 	track: {
@@ -1273,6 +1215,7 @@ const CONFIG = {
 		defaultWeight: 5,
 		minWeight: 1,
 		maxWeight: 9,
+		lightColorThreshold: 0.6,
 	},
 	panel: {
 		minWidth: 320,
@@ -1306,7 +1249,6 @@ const CONFIG = {
 			'#ffbb66',
 		],
 		basemap: 'osm',
-		listName: 'Punkty',
 		activeTab: 'routes',
 		panelCollapsed: false,
 		panelWidth: 300,
@@ -1324,8 +1266,8 @@ const STATE = {
 	nextPointId: 1,
 	activeTab: CONFIG.defaults.activeTab,
 	addMode: false,
-	listName: CONFIG.defaults.listName,
 	activeCancel: null,
+	basemapWheelAt: 0,
 	draggedId: null,
 	popupOpen: false,
 	panelCollapsed: CONFIG.defaults.panelCollapsed,
@@ -1360,7 +1302,6 @@ const $ = {
 		routesCount: DOM.getById('routes-count'),
 		pointsList: DOM.getById('panel-points-list'),
 		pointsCount: DOM.getById('points-count'),
-		fileName: DOM.getById('panel-file-name'),
 		addModeButton: DOM.getById('panel-add-mode'),
 		sortButton: DOM.getById('panel-sort'),
 		saveButton: DOM.getById('panel-save'),
@@ -1369,8 +1310,7 @@ const $ = {
 		importInput: DOM.get('#panel-import-input'),
 		clearButton: DOM.getById('panel-clear'),
 		basemap: DOM.getById('panel-basemap'),
-		globalColor: DOM.getById('panel-global-color'),
-		globalWeightBtn: DOM.getById('panel-global-weight-btn'),
+		global: DOM.getById('panel-global'),
 		resizer: DOM.getById('panel-resizer'),
 	},
 	footer: {
@@ -1478,6 +1418,13 @@ const Pure = {
 		return gpx
 	},
 
+	// @b Is light color
+	//------------------------
+	isLightColor: (hex) => {
+		const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
+		return (0.299 * r + 0.587 * g + 0.114 * b) / 255 >= CONFIG.track.lightColorThreshold
+	},
+
 	// @b Map padding
 	//------------------------
 	getMapPadding: () => {
@@ -1493,10 +1440,6 @@ const Pure = {
 		const padding = Pure.getMapPadding()
 		return { autoPanPaddingTopLeft: padding.topLeft, autoPanPaddingBottomRight: padding.bottomRight }
 	},
-
-	// @b Sanitize filename
-	//------------------------
-	sanitizeFilename: (name) => name.replace(/[\\/:*?"<>|]/g, '').trim() || CONFIG.defaults.listName,
 
 	// @b Get max panel width
 	//------------------------
@@ -1535,7 +1478,6 @@ const Effects = {
 			globalColor: STATE.globalColor,
 			globalWeight: STATE.globalWeight,
 			basemap: STATE.basemap,
-			listName: STATE.listName,
 			activeTab: STATE.activeTab,
 		})
 	},
@@ -1554,7 +1496,7 @@ const Effects = {
 		const xml = Pure.buildGpx(waypoints)
 		const blob = new Blob([xml], { type: 'application/gpx+xml' })
 		const url = URL.createObjectURL(blob)
-		const filename = `${Pure.sanitizeFilename(STATE.listName)}.gpx`
+		const filename = `${CONFIG.gpx.fileName}.gpx`
 
 		const link = DOM.create({
 			type: 'a',
@@ -1564,12 +1506,6 @@ const Effects = {
 		link.click()
 		URL.revokeObjectURL(url)
 		Log.exit()
-	},
-
-	// @b Apply list name
-	//------------------------
-	applyListName: () => {
-		DOM.setText($.panel.fileName, STATE.listName)
 	},
 
 	// @b Apply active tab
@@ -1623,7 +1559,7 @@ const Effects = {
 	//------------------------
 	updateZoomIndicator: () => {
 		if (!MapView._instance) return
-		const zoom = Number((MapView._instance.getZoom()).toFixed(1))
+		const zoom = Number(MapView._instance.getZoom().toFixed(1))
 		DOM.setText($.main.zoom, `Zoom: ${String(zoom).replace('.', ',')}`)
 	},
 
@@ -1670,7 +1606,6 @@ const Logic = {
 		STATE.panelCollapsed = settings.panelCollapsed ?? CONFIG.defaults.panelCollapsed
 		STATE.panelWidth = settings.panelWidth ?? CONFIG.defaults.panelWidth
 		STATE.mapView = settings.mapView ?? null
-		STATE.listName = settings.listName ?? CONFIG.defaults.listName
 		if (['routes', 'points'].includes(settings.activeTab)) STATE.activeTab = settings.activeTab
 		if (/^#[0-9a-f]{6}$/i.test(settings.globalColor)) STATE.globalColor = settings.globalColor
 		if (Object.hasOwn(CONFIG.map.basemaps, settings.basemap)) STATE.basemap = settings.basemap
@@ -1782,8 +1717,7 @@ const Logic = {
 	setTab: (tab) => {
 		if (!['routes', 'points'].includes(tab) || tab === STATE.activeTab) return
 		STATE.activeTab = tab
-		ColorPicker.close()
-		WidthPicker.close()
+		StylePicker.close()
 		Effects.applyTab()
 		Effects.applyAddMode()
 		Effects.saveSettings()
@@ -2117,34 +2051,11 @@ const Handlers = {
 	// @b Drag end
 	//------------------------
 	pointDragEnd: () => {
-		DOM.getAll('.panel__point--dragging', $.panel.pointsList).forEach((el) => DOM.removeClass(el, 'panel__point--dragging'))
+		DOM.getAll('.panel__point--dragging', $.panel.pointsList).forEach((el) =>
+			DOM.removeClass(el, 'panel__point--dragging'),
+		)
 		DOM.getAll('.panel__point--over', $.panel.pointsList).forEach((el) => DOM.removeClass(el, 'panel__point--over'))
 		STATE.draggedId = null
-	},
-
-	// @g List name
-	//------------------------
-	// @b Name blur
-	//------------------------
-	fileNameBlur: (e) => {
-		const newName = DOM.getText(e.target).trim() || CONFIG.defaults.listName
-		STATE.listName = newName
-		Effects.applyListName()
-		Effects.saveSettings()
-	},
-
-	// @b Name keydown
-	//------------------------
-	fileNameKeydown: (e) => {
-		if (e.key === 'Enter') {
-			e.preventDefault()
-			e.target.blur()
-		} else if (e.key === 'Escape') {
-			e.preventDefault()
-			e.stopPropagation()
-			DOM.setText(e.target, STATE.listName)
-			e.target.blur()
-		}
 	},
 
 	// @g Global Keyboard
@@ -2165,32 +2076,40 @@ const Handlers = {
 		}
 	},
 
-	// @g Global style
+	// @g Line style (color + width)
 	//------------------------
-	// @b Global color click
+	// @b Global style click
 	//------------------------
-	globalColorClick: (e) => {
-		ColorPicker.open(e.currentTarget, STATE.globalColor, Logic.setAllColor)
-	},
-
-	// @b Global weight click
-	//------------------------
-	globalWeightClick: (e) => {
-		WidthPicker.open(e.currentTarget, STATE.globalWeight, Logic.setAllWeight)
-	},
-
-	// @b Global weight input
-	//------------------------
-	globalWeightInput: (e) => {
-		const weight = Number(e.target.value)
-		Logic.setAllWeight(weight)
-		DOM.setText($.panel.globalWeight, `${weight} px`)
+	globalStyleClick: (anchor) => {
+		StylePicker.open(
+			anchor,
+			{ color: STATE.globalColor, weight: STATE.globalWeight },
+			{ onColor: Logic.setAllColor, onWeight: Logic.setAllWeight },
+		)
 	},
 
 	// @b Basemap change
 	//------------------------
 	basemapChange: (e) => {
 		Logic.setBasemap(e.target.value)
+	},
+
+	// @b Basemap wheel
+	//------------------------
+	basemapWheel: (e) => {
+		e.preventDefault()
+		if (!e.deltaY) return
+
+		// One step per wheel "notch" (trackpads fire many events in a row)
+		const now = Date.now()
+		if (now - STATE.basemapWheelAt < CONFIG.map.basemapWheelDelay) return
+
+		const keys = Array.from($.panel.basemap.options, (option) => option.value)
+		const next = keys.indexOf(STATE.basemap) + (e.deltaY > 0 ? 1 : -1)
+		if (next < 0 || next >= keys.length) return
+
+		STATE.basemapWheelAt = now
+		Logic.setBasemap(keys[next])
 	},
 
 	// @b Import drag over
@@ -2245,26 +2164,17 @@ const Handlers = {
 		Logic.removeTrack(id)
 	},
 
-	// @b Track color click
+	// @b Track style click
 	//------------------------
-	colorClick: (id, anchor) => {
+	styleClick: (id, anchor) => {
 		const track = STATE.tracks.find((t) => t.id === id)
-		if (track) ColorPicker.open(anchor, track.color, (color) => Logic.setColor(id, color))
-	},
+		if (!track) return
 
-	// @b Track weight click
-	//------------------------
-	weightClick: (id, anchor) => {
-		const track = STATE.tracks.find((t) => t.id === id)
-		if (track) WidthPicker.open(anchor, track.weight, (weight) => Logic.setWeight(id, weight))
-	},
-
-	// @b Weight input
-	//------------------------
-	weightInput: (id, e, label) => {
-		const weight = Number(e.target.value)
-		Logic.setWeight(id, weight)
-		DOM.setText(label, `${weight} px`)
+		StylePicker.open(
+			anchor,
+			{ color: track.color, weight: track.weight },
+			{ onColor: (color) => Logic.setColor(id, color), onWeight: (weight) => Logic.setWeight(id, weight) },
+		)
 	},
 
 	// @g Panel Toggle & Resize
@@ -2357,8 +2267,6 @@ const Listeners = {
 		DOM.on($.panel.addModeButton, 'click', Handlers.addModeClick)
 		DOM.on($.panel.sortButton, 'click', Handlers.sortClick)
 		DOM.on($.panel.saveButton, 'click', Handlers.saveGpxClick)
-		DOM.on($.panel.fileName, 'blur', Handlers.fileNameBlur)
-		DOM.on($.panel.fileName, 'keydown', Handlers.fileNameKeydown)
 		DOM.on($.panel.pointsList, 'dragstart', Handlers.pointDragStart)
 		DOM.on($.panel.pointsList, 'dragover', Handlers.pointDragOver)
 		DOM.on($.panel.pointsList, 'drop', Handlers.pointDrop)
@@ -2372,8 +2280,7 @@ const Listeners = {
 		DOM.on(document, 'drop', Handlers.preventFileDrop)
 		DOM.on($.panel.clearButton, 'click', Handlers.clearAllClick)
 		DOM.on($.panel.basemap, 'change', Handlers.basemapChange)
-		DOM.on($.panel.globalColor, 'click', Handlers.globalColorClick)
-		DOM.on($.panel.globalWeightBtn, 'click', Handlers.globalWeightClick)
+		DOM.on($.panel.basemap, 'wheel', Handlers.basemapWheel, { passive: false })
 		DOM.on($.panel.resizer, 'mousedown', Handlers.resizerMouseDown)
 		// Resize
 		DOM.on(window, 'resize', Tools.debounce(Handlers.windowResize, 150))
@@ -2400,8 +2307,7 @@ const App = {
 		Log.enter('App')
 		Logic.loadSettings()
 		Modal.init()
-		ColorPicker.init()
-		WidthPicker.init()
+		StylePicker.init()
 		MapView.init()
 		Logic.loadWaypoints()
 		Logic.clampPanelWidth()
@@ -2409,7 +2315,6 @@ const App = {
 		Panel.renderTracks()
 		Panel.renderPoints()
 		Panel.initGlobalControls()
-		Effects.applyListName()
 		Effects.applyTab()
 		Effects.applyAddMode()
 		Effects.updateBasemapSelect()
